@@ -1,0 +1,188 @@
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { fetchPublicStats } from "../api/dashboard";
+import Logo from "../components/Logo";
+
+const propertyOptions = [
+  { value: "", label: "All Types" },
+  { value: "boarding_house", label: "Boarding house" },
+  { value: "studio", label: "Studio" },
+  { value: "apartment", label: "Apartment" },
+  { value: "condo", label: "Condo" },
+  { value: "house", label: "House" },
+];
+
+const icons = {
+  verified: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
+  affordable: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="13" r="8" />
+      <path d="M9 5l3-2 3 2" />
+      <text x="12" y="17" textAnchor="middle" fontSize="9" fill="currentColor" stroke="none">₱</text>
+    </svg>
+  ),
+  student: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="8" r="3" />
+      <circle cx="16" cy="9" r="2.5" />
+      <path d="M3 19c0-3 3-5 6-5s6 2 6 5" />
+      <path d="M14 19c0-2 1.5-3.5 3.5-3.5S21 17 21 19" />
+    </svg>
+  ),
+  secure: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3z" />
+      <rect x="9.5" y="11" width="5" height="4.5" rx="0.8" />
+      <path d="M10.5 11V9.5a1.5 1.5 0 0 1 3 0V11" />
+    </svg>
+  ),
+  search: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M16.5 16.5L21 21" />
+    </svg>
+  ),
+  pin: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z" />
+      <circle cx="12" cy="11" r="2" />
+    </svg>
+  ),
+};
+
+export default function HomePage() {
+  const navigate = useNavigate();
+  const { hash } = useLocation();
+  const [location, setLocation] = useState("");
+  const [propertyType, setPropertyType] = useState("");
+
+  const stats = useQuery({
+    queryKey: ["public-stats"],
+    queryFn: fetchPublicStats,
+  });
+
+  // Header links like "/#about" should scroll to that section.
+  useEffect(() => {
+    if (hash) document.querySelector(hash)?.scrollIntoView({ behavior: "smooth" });
+  }, [hash]);
+
+  function handleSearch(e: FormEvent) {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    if (location.trim()) params.set("q", location.trim());
+    if (propertyType) params.set("propertyType", propertyType);
+    navigate(`/search?${params.toString()}`);
+  }
+
+  return (
+    <main className="landing">
+      <section className="landing-hero">
+        <div className="landing-content">
+          <Logo large />
+
+          <h1 className="tagline">
+            Find your next home,
+            <br />
+            one click closer.
+          </h1>
+          <p className="subtagline">
+            Safe. Verified. Affordable.
+            <br />
+            Student and boarding house rentals, made easier.
+          </p>
+
+          <form className="landing-search" onSubmit={handleSearch}>
+            <span className="search-icon">{icons.pin}</span>
+            <label className="search-field">
+              <span className="sr-only">Location</span>
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Search location (e.g. Cebu City, Lapu-Lapu, etc.)"
+              />
+            </label>
+            <select
+              aria-label="Property type"
+              value={propertyType}
+              onChange={(e) => setPropertyType(e.target.value)}
+            >
+              {propertyOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="search-submit" aria-label="Search">
+              {icons.search}
+            </button>
+          </form>
+
+          <ul className="feature-row">
+            <li>
+              {icons.verified}
+              <span>Verified<br />Listings</span>
+            </li>
+            <li>
+              {icons.affordable}
+              <span>Affordable<br />Options</span>
+            </li>
+            <li>
+              {icons.student}
+              <span>Student<br />Friendly</span>
+            </li>
+            <li>
+              {icons.secure}
+              <span>Safe &amp;<br />Secure</span>
+            </li>
+          </ul>
+        </div>
+
+        <p className="script-note">
+          More than just a place,
+          <br />
+          it's your nest.
+        </p>
+      </section>
+
+      <section className="stats">
+        <Stat label="Live listings" value={stats.data?.live_listings} />
+        <Stat label="Barangays covered" value={stats.data?.barangays} />
+        <Stat label="Property owners" value={stats.data?.owners} />
+        <Stat label="Tenants" value={stats.data?.tenants} />
+      </section>
+
+      <section id="about" className="landing-section">
+        <h2>About NestFinds</h2>
+        <p>
+          NestFinds connects students, young professionals, and families with independent
+          property owners across Cebu. Every listing is reviewed by our team before it goes
+          live, and the exact address is shared only after the owner confirms a viewing.
+        </p>
+      </section>
+
+      <section id="contact" className="landing-section">
+        <h2>Contact</h2>
+        <p>
+          Questions about listing your property or finding a place? Email{" "}
+          <a href="mailto:hello@nestfind.ph">hello@nestfind.ph</a>.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number | undefined }) {
+  return (
+    <div className="stat">
+      <div className="stat-value">{value ?? "–"}</div>
+      <div className="stat-label">{label}</div>
+    </div>
+  );
+}

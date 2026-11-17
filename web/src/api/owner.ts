@@ -1,5 +1,12 @@
-import type { ListingPhoto, OwnerListingDetail, OwnerListingRow } from "../types";
-
+import type {
+  ListingPhoto,
+  NewListingInput,
+  OwnerInquiry,
+  OwnerListing,
+  OwnerListingDetail,
+  OwnerListingRow,
+  OwnerViewing,
+} from "../type";
 
 const API_BASE = "http://localhost:4000";
 
@@ -95,4 +102,16 @@ export function deleteListingPhoto(token: string, listingId: string, photoId: st
     `/api/owner/listings/${encodeURIComponent(listingId)}/photos/${encodeURIComponent(photoId)}`,
     { method: "DELETE" }
   );
+}
+export function deleteDraft(token: string, listingId: string) {
+  return authedRequest(token, `/api/owner/listings/${encodeURIComponent(listingId)}`, {
+    method: "DELETE",
+  });
+}
+
+export function saveWalkthrough(token: string, listingId: string, url: string) {
+  return authedRequest(token, `/api/owner/listings/${encodeURIComponent(listingId)}/walkthrough`, {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  });
 }

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { fetchMe, login as apiLogin, register as apiRegister } from "../api/auth";
-import type { AuthUser, Role } from "../types";
+import type { AuthUser, Role } from "../type";
 
 const TOKEN_KEY = "nestfind_token";
 

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../db";
+import { pool } from "../db.js";
 
 // Mounted at /api/listings/:id/inquiries
 export const inquiriesRouter = Router({ mergeParams: true });
@@ -9,7 +9,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // POST /api/listings/:id/inquiries
 // Body: { name, email, phone?, message, preferredAt? }
 inquiriesRouter.post("/", async (req, res) => {
-  const { id } = req.params;
+  const id = String((req.params as Record<string, string | undefined>).id ?? "");
   const body = req.body ?? {};
 
   const name = typeof body.name === "string" ? body.name.trim() : "";

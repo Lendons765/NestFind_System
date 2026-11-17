@@ -15,32 +15,22 @@ const propertyOptions = [
 ];
 
 const icons = {
-  verified: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3z" />
-      <path d="M9 12l2 2 4-4" />
+  pin: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z" />
+      <circle cx="12" cy="11" r="2" />
     </svg>
   ),
-  affordable: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="13" r="8" />
-      <path d="M9 5l3-2 3 2" />
-      <text x="12" y="17" textAnchor="middle" fontSize="9" fill="currentColor" stroke="none">₱</text>
+  sliders: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+      <circle cx="15" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
     </svg>
   ),
-  student: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="9" cy="8" r="3" />
-      <circle cx="16" cy="9" r="2.5" />
-      <path d="M3 19c0-3 3-5 6-5s6 2 6 5" />
-      <path d="M14 19c0-2 1.5-3.5 3.5-3.5S21 17 21 19" />
-    </svg>
-  ),
-  secure: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3z" />
-      <rect x="9.5" y="11" width="5" height="4.5" rx="0.8" />
-      <path d="M10.5 11V9.5a1.5 1.5 0 0 1 3 0V11" />
+  chevron: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9l6 6 6-6" />
     </svg>
   ),
   search: (
@@ -49,10 +39,32 @@ const icons = {
       <path d="M16.5 16.5L21 21" />
     </svg>
   ),
-  pin: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z" />
-      <circle cx="12" cy="11" r="2" />
+  verified: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
+  affordable: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 7c-2 2-3 4-3 7a7 7 0 0 0 14 0c0-3-1-5-3-7" />
+      <path d="M9 7l3-3 3 3" />
+      <text x="12" y="16" textAnchor="middle" fontSize="7" fill="currentColor" stroke="none">₱</text>
+    </svg>
+  ),
+  student: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="8" r="3" />
+      <circle cx="16" cy="9" r="2.5" />
+      <path d="M3 19c0-3 3-5 6-5s6 2 6 5" />
+      <path d="M14 19c0-2 1.5-3.5 3.5-3.5S21 17 21 19" />
+    </svg>
+  ),
+  secure: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3z" />
+      <rect x="9.5" y="11" width="5" height="4.5" rx="0.8" />
+      <path d="M10.5 11V9.5a1.5 1.5 0 0 1 3 0V11" />
     </svg>
   ),
 };
@@ -68,7 +80,7 @@ export default function HomePage() {
     queryFn: fetchPublicStats,
   });
 
-  // Header links like "/#about" should scroll to that section.
+  // Header links like "/#about" scroll to that section.
   useEffect(() => {
     if (hash) document.querySelector(hash)?.scrollIntoView({ behavior: "smooth" });
   }, [hash]);
@@ -100,25 +112,32 @@ export default function HomePage() {
 
           <form className="landing-search" onSubmit={handleSearch}>
             <span className="search-icon">{icons.pin}</span>
-            <label className="search-field">
-              <span className="sr-only">Location</span>
-              <input
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="Search location (e.g. Cebu City, Lapu-Lapu, etc.)"
-              />
-            </label>
-            <select
-              aria-label="Property type"
-              value={propertyType}
-              onChange={(e) => setPropertyType(e.target.value)}
-            >
-              {propertyOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            <input
+              className="search-input"
+              aria-label="Location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Search location (e.g. Cebu City, Lapu-Lapu, etc.)"
+            />
+
+            <span className="search-divider" />
+
+            <div className="type-field">
+              <span className="type-icon">{icons.sliders}</span>
+              <select
+                aria-label="Property type"
+                value={propertyType}
+                onChange={(e) => setPropertyType(e.target.value)}
+              >
+                {propertyOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <span className="type-chevron">{icons.chevron}</span>
+            </div>
+
             <button type="submit" className="search-submit" aria-label="Search">
               {icons.search}
             </button>
@@ -127,19 +146,35 @@ export default function HomePage() {
           <ul className="feature-row">
             <li>
               {icons.verified}
-              <span>Verified<br />Listings</span>
+              <span>
+                Verified
+                <br />
+                Listings
+              </span>
             </li>
             <li>
               {icons.affordable}
-              <span>Affordable<br />Options</span>
+              <span>
+                Affordable
+                <br />
+                Options
+              </span>
             </li>
             <li>
               {icons.student}
-              <span>Student<br />Friendly</span>
+              <span>
+                Student
+                <br />
+                Friendly
+              </span>
             </li>
             <li>
               {icons.secure}
-              <span>Safe &amp;<br />Secure</span>
+              <span>
+                Safe &amp;
+                <br />
+                Secure
+              </span>
             </li>
           </ul>
         </div>

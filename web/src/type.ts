@@ -2,18 +2,7 @@ export type PropertyType = "boarding_house" | "studio" | "apartment" | "condo" |
 
 // Matches the columns returned by GET /api/listings.
 // mysql2 returns DECIMAL values as strings and booleans as 0/1.
-export interface ListingSummary {
-  id: string;
-  title: string;
-  city: string;
-  barangay: string;
-  property_type: PropertyType;
-  monthly_rent: string | number;
-  bedrooms: number | null;
-  has_aircon: number;
-  has_wifi: number;
-  is_featured: number;
-}
+
 
 // Matches the columns returned by GET /api/listings/:id (no address).
 export interface ListingDetail {
@@ -31,6 +20,8 @@ export interface ListingDetail {
   has_parking: number;
   has_gym: number;
   house_rules: string | null;
+  verification: "unverified" | "pending" | "verified" | "rejected";
+  walkthroughUrl: string | null;
 }
 
 export interface SearchFilters {
@@ -38,6 +29,9 @@ export interface SearchFilters {
   barangay: string;
   propertyType: string;
   maxRent: string;
+  bedrooms: string;
+  sort: string;
+  amenities: string[];
 }
 
 export interface InquiryInput {
@@ -166,6 +160,10 @@ export interface OwnerListingRow {
   published_at: string | null;
   barangay: string;
   photo_count: number;
+  view_count: number;
+  inquiry_count: number;
+  applicant_count: number;
+  new_applicant_count: number;
 }
 
 export interface OwnerListingDetail {
@@ -187,4 +185,158 @@ export interface OwnerListingDetail {
   verification: "unverified" | "pending" | "verified" | "rejected";
   rejection_reason: string | null;
   photos: ListingPhoto[];
+}
+
+export interface ListingSummary {
+  id: string;
+  title: string;
+  city: string;
+  barangay: string;
+  property_type: PropertyType;
+  monthly_rent: string | number;
+  bedrooms: number | null;
+  has_aircon: number;
+  has_wifi: number;
+  has_parking: number;
+  is_furnished: number;
+  is_featured: number;
+  verification: "unverified" | "pending" | "verified" | "rejected";
+  cover_url: string | null;
+}
+
+export type ApplicationStatus = "submitted" | "under_review" | "approved" | "rejected" | "withdrawn";
+export type LeaseStatus = "draft" | "sent" | "signed_by_tenant" | "fully_signed" | "active" | "ended" | "cancelled";
+
+export interface ApplyInput {
+  desiredMoveIn?: string;
+  leaseTermMonths?: number;
+}
+
+export interface MyApplication {
+  id: string;
+  status: ApplicationStatus;
+  desired_move_in: string | null;
+  lease_term_months: number | null;
+  created_at: string;
+  listing_id: string;
+  title: string;
+  barangay: string;
+  lease_id: string | null;
+}
+
+export interface ListingApplicant {
+  id: string;
+  status: ApplicationStatus;
+  desired_move_in: string | null;
+  lease_term_months: number | null;
+  created_at: string;
+  tenant_name: string;
+  tenant_email: string;
+  tenant_phone: string | null;
+  lease_id: string | null;
+}
+
+export interface LeaseInput {
+  monthlyRent: number;
+  depositAmount: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface LeaseRow {
+  id: string;
+  status: LeaseStatus;
+  monthly_rent: string | number;
+  deposit_amount: string | number;
+  start_date: string | null;
+  end_date: string | null;
+  tenant_signed_at: string | null;
+  owner_signed_at: string | null;
+  title: string;
+  barangay: string;
+  address_line: string | null;
+  tenant_name: string;
+  owner_name: string;
+  my_role: "tenant" | "owner";
+}
+
+export interface PublicStats {
+  live_listings: number;
+  barangays: number;
+  owners: number;
+  tenants: number;
+}
+
+export interface UserDashboard {
+  role: "owner" | "tenant";
+  stats: Record<string, number | null | undefined>;
+  recent?: Array<{ tenant_name: string; title: string; created_at: string }>;
+  upcoming?: Array<{ listing_id: string; title: string; scheduled_at: string; status: string }>;
+}
+
+export interface OwnerDashboard {
+  totals: { listings: number; live: number; drafts: number; views: number };
+  activity: {
+    inquiries: number;
+    applicants: number;
+    new_applicants: number;
+    viewing_requests: number;
+    upcoming_viewings: number;
+    leases_to_sign: number;
+  };
+  listings: {
+    id: string;
+    title: string;
+    status: string;
+    views: number;
+    inquiries: number;
+    applicants: number;
+    viewings: number;
+  }[];
+  recentInquiries: { id: string; createdAt: string; title: string; tenantName: string }[];
+  recentApplicants: { id: string; status: string; createdAt: string; title: string; tenantName: string }[];
+  upcomingViewings: {
+    id: string;
+    scheduledAt: string;
+    status: string;
+    listingId: string;
+    title: string;
+    tenantName: string;
+  }[];
+}
+
+export interface TenantSummary {
+  applications: number;
+  pending_applications: number;
+  viewings_requested: number;
+  viewings_confirmed: number;
+  conversations: number;
+  leases: number;
+}
+
+export interface TenantMessage {
+  body: string;
+  sentAt: string;
+  fromMe: boolean;
+  senderName: string;
+}
+
+export interface TenantConversation {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  barangay: string;
+  ownerName: string;
+  createdAt: string;
+  messages: TenantMessage[];
+}
+
+export interface TenantViewing {
+  id: string;
+  scheduled_at: string;
+  status: "requested" | "confirmed" | "completed" | "cancelled" | "no_show";
+  notes: string | null;
+  listing_id: string;
+  title: string;
+  barangay: string;
 }

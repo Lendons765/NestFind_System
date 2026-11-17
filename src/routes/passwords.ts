@@ -2,8 +2,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
-import { pool } from "../db";
-import { sendEmail } from "../mailer";
+import { pool } from "../db.js";
+import { sendEmail } from "../mailer.js";
 
 export const passwordRouter = Router();
 
@@ -24,20 +24,21 @@ passwordRouter.post("/forgot", async (req, res) => {
     "SELECT id, full_name FROM users WHERE email = ?",
     [email]
   );
-  if (rows.length === 0) return res.json(generic);
+  const user = rows[0];
+  if (!user) return res.json(generic);
 
   const token = randomBytes(32).toString("hex");
   await pool.query(
     `INSERT INTO email_tokens (id, user_id, purpose, token_hash, payload, expires_at)
      VALUES (?, ?, 'reset', ?, '{}', ?)`,
-    [randomUUID(), rows[0].id, sha256(token), new Date(Date.now() + TOKEN_TTL_MINUTES * 60 * 1000)]
+    [randomUUID(), user.id, sha256(token), new Date(Date.now() + TOKEN_TTL_MINUTES * 60 * 1000)]
   );
 
   const base = process.env.APP_URL ?? "http://localhost:5173";
   await sendEmail(
     email,
     "Reset your NestFind password",
-    `Hi ${rows[0].full_name},\n\n` +
+    `Hi ${user.full_name},\n\n` +
       `Reset your password here (valid for ${TOKEN_TTL_MINUTES} minutes):\n` +
       `${base}/reset?token=${token}\n\n` +
       `If you didn't ask for this, ignore this email.`
@@ -62,8 +63,10 @@ passwordRouter.post("/reset", async (req, res) => {
     [sha256(token)]
   );
   const row = rows[0];
-  if (!row || row.purpose !== "reset" || row.used_at !== null) return invalid();
-  if (new Date(row.expires_at) < new Date()) return invalid();
+  if (!row) return invalid();
+  if (row.purpose !== "reset" || row.used_at != null) return invalid();
+  const expiresAt = row.expires_at;
+  if (expiresAt == null || new Date(expiresAt) < new Date()) return invalid();
 
   // Mark the link as used first, so it can't be clicked twice.
   const [marked] = await pool.query<ResultSetHeader>(

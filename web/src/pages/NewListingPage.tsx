@@ -11,7 +11,7 @@ import {
   uploadListingPhoto,
 } from "../api/owner";
 import { fetchLocations } from "../api/locations";
-import type { ListingPhoto, NewListingInput } from "../types";
+import type { ListingPhoto, NewListingInput } from "../type";
 
 const API_BASE = "http://localhost:4000";
 
@@ -394,7 +394,7 @@ export default function NewListingPage() {
 
       {!isEditing && <p className="muted">After saving, you can add photos.</p>}
       <p className="muted">
-        Saved listings stay hidden. Submit the draft from My listings so an admin can review it.
+        Saved listings stay hidden until you publish them from My listings.
       </p>
     </main>
   );

@@ -1,20 +1,40 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import type { RowDataPacket } from "mysql2";
-import { pool } from "../db";
-import { requireAuth, requireRole } from "../auth";
+import { pool } from "../db.js";
+import { requireAuth, requireRole } from "../auth.js";
 
 export const listingsRouter = Router();
 
 const PROPERTY_TYPES = ["boarding_house", "studio", "apartment", "condo", "house", "other"];
 
+// Maps are used instead of plain objects so a query like "constructor" can't match.
+const AMENITY_COLUMNS = new Map<string, string>([
+  ["aircon", "l.has_aircon"],
+  ["wifi", "l.has_wifi"],
+  ["furnished", "l.is_furnished"],
+  ["parking", "l.has_parking"],
+]);
+
+const SORT_ORDERS = new Map<string, string>([
+  ["rent_asc", "l.monthly_rent ASC"],
+  ["rent_desc", "l.monthly_rent DESC"],
+  ["newest", "l.published_at DESC"],
+  ["featured", "l.is_featured DESC, l.monthly_rent ASC"],
+]);
+
 // GET /api/listings?q=Lahug&barangay=Lahug&propertyType=studio&maxRent=10000
+//   &bedrooms=studio|0|1|2|3+&amenities=aircon,wifi&sort=rent_asc
 listingsRouter.get("/", async (req, res) => {
-  const { q, barangay, propertyType, maxRent } = req.query;
+  const { q, barangay, propertyType, maxRent, bedrooms, sort, amenities } = req.query;
 
   let sql = `
     SELECT l.id, l.title, loc.city, loc.barangay, l.property_type, l.monthly_rent,
-           l.bedrooms, l.has_aircon, l.has_wifi, l.is_featured
+           l.bedrooms, l.has_aircon, l.has_wifi, l.has_parking, l.is_furnished,
+           l.is_featured, l.verification,
+           (SELECT m.storage_url FROM listing_media m
+              WHERE m.listing_id = l.id
+              ORDER BY m.sort_order ASC LIMIT 1) AS cover_url
     FROM listings l
     JOIN locations loc ON loc.id = l.location_id
     WHERE l.status = 'active'`;
@@ -26,20 +46,37 @@ listingsRouter.get("/", async (req, res) => {
     const like = `%${q.trim()}%`;
     params.push(like, like, like);
   }
-  if (barangay) {
+  if (typeof barangay === "string" && barangay) {
     sql += " AND loc.barangay = ?";
     params.push(barangay);
   }
-  if (propertyType) {
+  if (typeof propertyType === "string" && PROPERTY_TYPES.includes(propertyType)) {
     sql += " AND l.property_type = ?";
     params.push(propertyType);
   }
-  if (maxRent) {
+  if (typeof maxRent === "string" && maxRent && Number.isFinite(Number(maxRent))) {
     sql += " AND l.monthly_rent <= ?";
     params.push(Number(maxRent));
   }
 
-  sql += " ORDER BY l.is_featured DESC, l.monthly_rent ASC LIMIT 50";
+  if (bedrooms === "studio") {
+    sql += " AND l.bedrooms = 0";
+  } else if (bedrooms === "3+") {
+    sql += " AND l.bedrooms >= 3";
+  } else if (typeof bedrooms === "string" && /^[0-2]$/.test(bedrooms)) {
+    sql += " AND l.bedrooms = ?";
+    params.push(Number(bedrooms));
+  }
+
+  if (typeof amenities === "string") {
+    for (const key of amenities.split(",")) {
+      const column = AMENITY_COLUMNS.get(key);
+      if (column) sql += ` AND ${column} = 1`;
+    }
+  }
+
+  const order = SORT_ORDERS.get(typeof sort === "string" ? sort : "") ?? SORT_ORDERS.get("featured")!;
+  sql += ` ORDER BY ${order} LIMIT 50`;
 
   const [rows] = await pool.query(sql, params);
   res.json(rows);
@@ -47,23 +84,32 @@ listingsRouter.get("/", async (req, res) => {
 
 // GET /api/listings/:id (the address is never returned here)
 listingsRouter.get("/:id", async (req, res) => {
+  const listingId = String(req.params.id ?? "");
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT l.id, l.title, l.description, loc.city, loc.barangay, l.property_type,
             l.monthly_rent, l.bedrooms, l.is_furnished, l.has_aircon, l.has_wifi,
-            l.has_parking, l.has_gym, l.house_rules
+            l.has_parking, l.has_gym, l.house_rules, l.verification
      FROM listings l
      JOIN locations loc ON loc.id = l.location_id
      WHERE l.id = ? AND l.status = 'active'`,
-    [req.params.id]
+    [listingId]
   );
   if (rows.length === 0) return res.status(404).json({ error: "Not found" });
-  res.json(rows[0]);
+
+  await pool.query("UPDATE listings SET view_count = view_count + 1 WHERE id = ?", [listingId]);
+
+  const [tours] = await pool.query<RowDataPacket[]>(
+    "SELECT storage_url FROM listing_media WHERE listing_id = ? AND media_type = 'tour_360' LIMIT 1",
+    [listingId]
+  );
+
+  res.json({ ...rows[0], walkthroughUrl: tours[0]?.storage_url ?? null });
 });
 
 // GET /api/listings/:id/address
 // Visible to the listing's owner, and to a tenant with a confirmed viewing.
 listingsRouter.get("/:id/address", requireAuth, async (req, res) => {
-  const listingId = req.params.id;
+  const listingId = String(req.params.id ?? "");
   const userId = req.user!.id;
 
   const [rows] = await pool.query<RowDataPacket[]>(
@@ -75,6 +121,9 @@ listingsRouter.get("/:id/address", requireAuth, async (req, res) => {
   }
 
   const listing = rows[0];
+  if (!listing) {
+    return res.status(404).json({ error: "Listing not found." });
+  }
   let allowed = listing.owner_id === userId;
 
   if (!allowed && req.user!.role === "tenant") {

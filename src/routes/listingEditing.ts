@@ -6,8 +6,8 @@ import { Router } from "express";
 import type { NextFunction, Request, Response } from "express";
 import multer from "multer";
 import type { RowDataPacket } from "mysql2";
-import { pool } from "../db";
-import { requireAuth, requireRole } from "../auth";
+import { pool } from "../db.js";
+import { requireAuth, requireRole } from "../auth.js";
 
 export const listingEditingRouter = Router();
 
@@ -93,11 +93,12 @@ function parseListing(body: any) {
 // GET /api/owner/listings/:id
 // Full details for the edit page, including the address and photos.
 listingEditingRouter.get("/:id", async (req, res) => {
-  const listing = await ownListing(req.params.id, req.user!.id);
+  const listingId = String(req.params.id ?? "");
+  const listing = await ownListing(listingId, req.user!.id);
   if (!listing) return res.status(404).json({ error: "Listing not found." });
 
   const [photos] = await pool.query<RowDataPacket[]>(
-    "SELECT id, storage_url AS url FROM listing_media WHERE listing_id = ? ORDER BY sort_order",
+    "SELECT id, storage_url AS url FROM listing_media WHERE listing_id = ? AND media_type = 'photo' ORDER BY sort_order",
     [listing.id]
   );
   return res.json({ ...listing, photos });
@@ -106,7 +107,8 @@ listingEditingRouter.get("/:id", async (req, res) => {
 // PATCH /api/owner/listings/:id
 // Only drafts can change. Rejected listings return to draft, so they can be edited.
 listingEditingRouter.patch("/:id", async (req, res) => {
-  const listing = await ownListing(req.params.id, req.user!.id);
+  const listingId = String(req.params.id ?? "");
+  const listing = await ownListing(listingId, req.user!.id);
   if (!listing) return res.status(404).json({ error: "Listing not found." });
   if (listing.status !== "draft") {
     return res.status(409).json({
@@ -146,14 +148,39 @@ listingEditingRouter.patch("/:id", async (req, res) => {
   return res.json({ id: listing.id, status: "draft" });
 });
 
+// DELETE /api/owner/listings/:id
+// Only drafts can be deleted. Live and waiting listings are kept for records.
+listingEditingRouter.delete("/:id", async (req, res) => {
+  const listingId = String(req.params.id ?? "");
+  const listing = await ownListing(listingId, req.user!.id);
+  if (!listing) return res.status(404).json({ error: "Listing not found." });
+  if (listing.status !== "draft") {
+    return res.status(409).json({ error: "Only drafts can be deleted." });
+  }
+
+  const [photos] = await pool.query<RowDataPacket[]>(
+    "SELECT storage_url FROM listing_media WHERE listing_id = ?",
+    [listing.id]
+  );
+
+  await pool.query("DELETE FROM listings WHERE id = ?", [listing.id]);
+
+  for (const photo of photos) {
+    await unlink(path.join(UPLOAD_DIR, path.basename(photo.storage_url))).catch(() => {});
+  }
+
+  return res.json({ deleted: true });
+});
+
 // POST /api/owner/listings/:id/photos
 // Form field "photo". Up to 10 photos per listing.
 listingEditingRouter.post("/:id/photos", uploadOne, async (req, res) => {
+  const listingId = String(req.params.id ?? "");
   const discardFile = async () => {
     if (req.file) await unlink(req.file.path).catch(() => {});
   };
 
-  const listing = await ownListing(req.params.id, req.user!.id);
+  const listing = await ownListing(listingId, req.user!.id);
   if (!listing) {
     await discardFile();
     return res.status(404).json({ error: "Listing not found." });
@@ -163,10 +190,14 @@ listingEditingRouter.post("/:id/photos", uploadOne, async (req, res) => {
   }
 
   const [countRows] = await pool.query<RowDataPacket[]>(
-    "SELECT COUNT(*) AS n FROM listing_media WHERE listing_id = ?",
+    "SELECT COUNT(*) AS n FROM listing_media WHERE listing_id = ? AND media_type = 'photo'",
     [listing.id]
   );
-  const count = Number(countRows[0].n);
+  const countRow = countRows[0];
+  if (!countRow) {
+    return res.status(500).json({ error: "Could not load photo count." });
+  }
+  const count = Number(countRow.n);
   if (count >= MAX_PHOTOS) {
     await discardFile();
     return res.status(409).json({ error: `A listing can have up to ${MAX_PHOTOS} photos.` });
@@ -184,15 +215,45 @@ listingEditingRouter.post("/:id/photos", uploadOne, async (req, res) => {
 
 // DELETE /api/owner/listings/:id/photos/:photoId
 listingEditingRouter.delete("/:id/photos/:photoId", async (req, res) => {
+  const listingId = String(req.params.id ?? "");
+  const photoId = String(req.params.photoId ?? "");
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT m.id, m.storage_url FROM listing_media m
      JOIN listings l ON l.id = m.listing_id
      WHERE m.id = ? AND m.listing_id = ? AND l.owner_id = ?`,
-    [req.params.photoId, req.params.id, req.user!.id]
+    [photoId, listingId, req.user!.id]
   );
-  if (rows.length === 0) return res.status(404).json({ error: "Photo not found." });
+  const photo = rows[0];
+  if (!photo) return res.status(404).json({ error: "Photo not found." });
 
-  await pool.query("DELETE FROM listing_media WHERE id = ?", [rows[0].id]);
-  await unlink(path.join(UPLOAD_DIR, path.basename(rows[0].storage_url))).catch(() => {});
+  await pool.query("DELETE FROM listing_media WHERE id = ?", [photo.id]);
+  await unlink(path.join(UPLOAD_DIR, path.basename(photo.storage_url))).catch(() => {});
   return res.json({ deleted: true });
+});
+
+// POST /api/owner/listings/:id/walkthrough
+// Body: { url }. One walkthrough per listing; saving again replaces it.
+listingEditingRouter.post("/:id/walkthrough", async (req, res) => {
+  const listingId = String(req.params.id ?? "");
+  const listing = await ownListing(listingId, req.user!.id);
+  if (!listing) return res.status(404).json({ error: "Listing not found." });
+
+  const raw = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return res.status(400).json({ error: "Enter a full link starting with https://" });
+  }
+  if (parsed.protocol !== "https:" || raw.length > 500) {
+    return res.status(400).json({ error: "The walkthrough link must start with https:// (max 500 characters)." });
+  }
+
+  await pool.query("DELETE FROM listing_media WHERE listing_id = ? AND media_type = 'tour_360'", [listing.id]);
+  await pool.query(
+    `INSERT INTO listing_media (id, listing_id, media_type, storage_url, sort_order)
+     VALUES (?, ?, 'tour_360', ?, 0)`,
+    [randomUUID(), listing.id, raw]
+  );
+  return res.status(201).json({ url: raw });
 });

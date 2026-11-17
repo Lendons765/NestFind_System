@@ -1,4 +1,4 @@
-import type { AuthResponse, AuthUser, Role, VerificationPending } from "../types";
+import type { AuthResponse, AuthUser, Role, VerificationPending } from "../type";
 
 const API_BASE = "http://localhost:4000";
 

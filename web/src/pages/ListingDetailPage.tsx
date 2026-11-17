@@ -5,6 +5,8 @@ import { getListing, getListingAddress } from "../api/listings";
 import { useAuth } from "../auth/AuthContext";
 import InquiryForm from "../components/InquiryForm";
 import PhotoGallery from "../components/PhotoGallery";
+import ApplyPanel from "../components/ApplyPanel";
+import BookViewingPanel from "../components/BookViewingPanel";
 
 const propertyLabels: Record<string, string> = {
   boarding_house: "Boarding house",
@@ -87,6 +89,7 @@ export default function ListingDetailPage() {
 
       <div className="detail">
         <h1>{data.title}</h1>
+        {data.verification === "verified" && <span className="verified">✓ Verified listing</span>}
         <p className="muted">
           {data.barangay}, {data.city} · {propertyLabels[data.property_type]}
         </p>
@@ -120,6 +123,22 @@ export default function ListingDetailPage() {
         <div className="inquiry">{addressNote}</div>
         <PhotoGallery listingId={data.id} />
         <InquiryForm listingId={data.id} />
+        <ApplyPanel listingId={data.id} />
+        <BookViewingPanel listingId={data.id} />
+        {data.walkthroughUrl && (
+          <section className="inquiry-card walkthrough">
+            <h2>Virtual walkthrough</h2>
+            <p className="muted">Take a tour of the place before you visit.</p>
+            <a
+              href={data.walkthroughUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="button-link"
+            >
+              Open the walkthrough
+            </a>
+          </section>
+        )}
       </div>
     </main>
   );

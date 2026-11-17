@@ -1,4 +1,4 @@
-import type { InquiryInput, InquiryResult, ListingDetail, ListingSummary, SearchFilters } from "../types";
+import type { InquiryInput, InquiryResult, ListingDetail, ListingSummary, SearchFilters } from "../type";
 
 const API_BASE = "http://localhost:4000";
 
@@ -8,6 +8,9 @@ export async function searchListings(filters: SearchFilters): Promise<ListingSum
   if (filters.barangay) params.set("barangay", filters.barangay);
   if (filters.propertyType) params.set("propertyType", filters.propertyType);
   if (filters.maxRent) params.set("maxRent", filters.maxRent);
+  if (filters.bedrooms) params.set("bedrooms", filters.bedrooms);
+  if (filters.sort) params.set("sort", filters.sort);
+  if (filters.amenities.length) params.set("amenities", filters.amenities.join(","));
 
   const res = await fetch(`${API_BASE}/api/listings?${params.toString()}`);
   if (!res.ok) throw new Error(`Search failed (${res.status})`);

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { RowDataPacket } from "mysql2";
-import { pool } from "../db";
+import { pool } from "../db.js";
 
 export const locationsRouter = Router();
 

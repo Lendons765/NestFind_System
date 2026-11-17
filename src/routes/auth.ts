@@ -2,9 +2,9 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
-import { pool } from "../db";
-import { requireAuth, signToken } from "../auth";
-import { sendEmail } from "../mailer";
+import { pool } from "../db.js";
+import { requireAuth, signToken } from "../auth.js";
+import { sendEmail } from "../mailer.js";
 
 export const authRouter = Router();
 
@@ -64,6 +64,9 @@ authRouter.post("/register", async (req, res) => {
 
   if (existing.length > 0) {
     const account = existing[0];
+    if (!account) {
+      return res.status(409).json({ error: "An account with this email already exists." });
+    }
     if (account.password_hash === null && account.role === "tenant") {
       const passwordHash = await bcrypt.hash(password, 12);
       const token = await createClaimToken(account.id, { fullName, passwordHash });
@@ -130,6 +133,9 @@ authRouter.get("/verify", async (req, res) => {
     [row.user_id]
   );
   const user = users[0];
+  if (!user) {
+    return invalid();
+  }
   const sessionToken = signToken({ id: user.id, role: user.role });
 
   return res.json({
@@ -156,8 +162,7 @@ authRouter.post("/login", async (req, res) => {
   const user = rows[0];
 
   // Same message for "no account" and "wrong password", so emails can't be guessed.
-  const valid =
-    user?.password_hash && (await bcrypt.compare(password, user.password_hash));
+  const valid = user && user.password_hash && (await bcrypt.compare(password, user.password_hash));
   if (!user || !valid) {
     return res.status(401).json({ error: "Email or password is incorrect." });
   }
@@ -179,6 +184,9 @@ authRouter.get("/me", requireAuth, async (req, res) => {
     return res.status(404).json({ error: "Account not found." });
   }
   const user = rows[0];
+  if (!user) {
+    return res.status(404).json({ error: "Account not found." });
+  }
   return res.json({
     id: user.id,
     role: user.role,

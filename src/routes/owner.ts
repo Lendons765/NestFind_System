@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { RowDataPacket } from "mysql2";
-import { pool } from "../db";
-import { requireAuth, requireRole } from "../auth";
+import { pool } from "../db.js";
+import { requireAuth, requireRole } from "../auth.js";
 
 export const ownerRouter = Router();
 
@@ -75,6 +75,7 @@ ownerRouter.get("/inquiries", async (req, res) => {
 // Body: { status: "confirmed" | "cancelled" }
 // Only requests on this owner's listings can be changed, and only while they're pending.
 ownerRouter.patch("/viewings/:id", async (req, res) => {
+  const viewingId = String(req.params.id ?? "");
   const status = req.body?.status;
   if (status !== "confirmed" && status !== "cancelled") {
     return res.status(400).json({ error: "Status must be confirmed or cancelled." });
@@ -85,26 +86,32 @@ ownerRouter.patch("/viewings/:id", async (req, res) => {
      FROM viewings v
      JOIN listings l ON l.id = v.listing_id
      WHERE v.id = ? AND l.owner_id = ?`,
-    [req.params.id, req.user!.id]
+    [viewingId, req.user!.id]
   );
-  if (rows.length === 0) {
+  const viewing = rows[0];
+  if (!viewing) {
     return res.status(404).json({ error: "Viewing request not found." });
   }
-  if (rows[0].status !== "requested") {
-    return res.status(409).json({ error: `This request is already ${rows[0].status}.` });
+  if (viewing.status !== "requested") {
+    return res.status(409).json({ error: `This request is already ${viewing.status}.` });
   }
 
-  await pool.query("UPDATE viewings SET status = ? WHERE id = ?", [status, req.params.id]);
-  return res.json({ id: req.params.id, status });
+  await pool.query("UPDATE viewings SET status = ? WHERE id = ?", [status, viewingId]);
+  return res.json({ id: viewingId, status });
 });
 
 // GET /api/owner/listings
-// All of this owner's listings, including drafts, pending ones, and rejections.
+// All of this owner's listings, with views, inquiries, and applicants.
 ownerRouter.get("/listings", async (req, res) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT l.id, l.title, l.monthly_rent, l.status, l.verification, l.rejection_reason,
-            l.published_at, loc.barangay,
-            (SELECT COUNT(*) FROM listing_media m WHERE m.listing_id = l.id) AS photo_count
+            l.published_at, l.view_count, loc.barangay,
+            (SELECT COUNT(*) FROM listing_media m
+               WHERE m.listing_id = l.id AND m.media_type = 'photo') AS photo_count,
+            (SELECT COUNT(*) FROM conversations c WHERE c.listing_id = l.id) AS inquiry_count,
+            (SELECT COUNT(*) FROM applications a WHERE a.listing_id = l.id) AS applicant_count,
+            (SELECT COUNT(*) FROM applications a
+               WHERE a.listing_id = l.id AND a.status = 'submitted') AS new_applicant_count
      FROM listings l
      JOIN locations loc ON loc.id = l.location_id
      WHERE l.owner_id = ?
@@ -115,22 +122,24 @@ ownerRouter.get("/listings", async (req, res) => {
 });
 
 // POST /api/owner/listings/:id/submit
-// Moves a draft to pending_verification so an admin can review it.
+// Publishes a draft so it appears in search immediately.
 ownerRouter.post("/listings/:id/submit", async (req, res) => {
+  const listingId = String(req.params.id ?? "");
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT status FROM listings WHERE id = ? AND owner_id = ?",
-    [req.params.id, req.user!.id]
+    [listingId, req.user!.id]
   );
-  if (rows.length === 0) {
+  const listing = rows[0];
+  if (!listing) {
     return res.status(404).json({ error: "Listing not found." });
   }
-  if (rows[0].status !== "draft") {
-    return res.status(409).json({ error: `This listing is already ${rows[0].status}.` });
+  if (listing.status !== "draft") {
+    return res.status(409).json({ error: `This listing is already ${listing.status}.` });
   }
 
   await pool.query(
-    "UPDATE listings SET status = 'pending_verification' WHERE id = ?",
-    [req.params.id]
+    "UPDATE listings SET status = 'active', published_at = NOW(3) WHERE id = ?",
+    [listingId]
   );
-  return res.json({ id: req.params.id, status: "pending_verification" });
+  return res.json({ id: listingId, status: "active" });
 });

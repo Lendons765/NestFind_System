@@ -1,4 +1,4 @@
-import type { LocationOption } from "../types";
+import type { LocationOption } from "../type";
 
 const API_BASE = "http://localhost:4000";
 

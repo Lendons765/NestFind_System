@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { fetchOwnerInquiries, updateViewingStatus } from "../api/owner";
-import type { OwnerInquiry, OwnerViewing } from "../types";
+import type { OwnerInquiry, OwnerViewing } from "../type";
 
 type Decision = "confirmed" | "cancelled";
 
@@ -62,7 +62,7 @@ function InquiryCard({
       <p className="muted">Received {formatDate(item.createdAt)}</p>
 
       <div className="thread">
-        {item.messages.map((m, i) => (
+        {item.messages.map((m: { senderName: string; body: string }, i: number) => (
           <div key={i} className="bubble">
             <strong>{m.senderName}</strong>
             <p>{m.body}</p>
@@ -73,7 +73,7 @@ function InquiryCard({
       {item.viewings.length > 0 && (
         <div className="viewings">
           <h4>Viewing requests</h4>
-          {item.viewings.map((v) => (
+          {item.viewings.map((v: OwnerViewing) => (
             <ViewingRow key={v.id} viewing={v} busy={busy} onDecide={onDecide} />
           ))}
         </div>

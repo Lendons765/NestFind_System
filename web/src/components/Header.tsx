@@ -17,19 +17,20 @@ export default function Header() {
 
       <nav>
         <div className="nav-links">
-          <Link to="/">Home</Link>
-          <Link to="/search">Browse</Link>
-          <Link to="/#about">About</Link>
-          <Link to="/#contact">Contact</Link>
+          {!user && <Link to="/">Home</Link>}
+          {!user && <Link to="/#about">About</Link>}
+          {!user && <Link to="/#contact">Contact</Link>}
+          {user && user.role !== "tenant" && <Link to="/search">Browse</Link>}
         </div>
 
         <div className="nav-auth">
           {user ? (
             <>
-              <Link to="/dashboard">Dashboard</Link>
+              {user.role === "tenant" && <Link to="/my-home">My home</Link>}
               {user.role === "owner" && <Link to="/my-listings">My listings</Link>}
+              {user.role === "owner" && <Link to="/dashboard">Dashboard</Link>}
               {user.role === "owner" && <Link to="/inbox">Inbox</Link>}
-              {user.role === "admin" && <Link to="/admin">Admin</Link>}
+              <Link to="/leases">Leases</Link>
               <span className="nav-user">
                 {user.fullName} ({user.role})
               </span>

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchPublicStats } from "../api/dashboard";
 import { useAuth } from "../auth/AuthContext";
 import Logo from "../components/Logo";
+import BrowseSection from "../components/BrowseSection";
 
 const propertyOptions = [
   { value: "", label: "All Types" },
@@ -98,6 +99,15 @@ function timeOfDayGreeting() {
   return "Good evening";
 }
 
+function Stat({ label, value }: { label: string; value: number | undefined }) {
+  return (
+    <div className="stat">
+      <div className="stat-value">{value ?? "–"}</div>
+      <div className="stat-label">{label}</div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const navigate = useNavigate();
   const { hash } = useLocation();
@@ -122,7 +132,17 @@ export default function HomePage() {
     navigate(`/search?${params.toString()}`);
   }
 
-  // Logged-in users get a greeting instead of the big logo hero.
+  // Shared browse section, shown on both the greeting and the visitor homepage.
+  const browseBlock = (
+    <section id="browse" className="home-browse">
+      <div className="home-browse-head">
+        <h2>Browse all listings</h2>
+        <Link to="/search">Open full search →</Link>
+      </div>
+      <BrowseSection />
+    </section>
+  );
+
   if (!loading && user) {
     const firstName = user.fullName.split(" ")[0];
     const copy = roleLines[user.role] ?? roleLines.tenant;
@@ -179,11 +199,12 @@ export default function HomePage() {
           <Stat label="Property owners" value={stats.data?.owners} />
           <Stat label="Tenants" value={stats.data?.tenants} />
         </section>
+
+        
       </main>
     );
   }
 
-  // Visitors see the full hero.
   return (
     <main className="landing">
       <section className="landing-hero">
@@ -265,6 +286,8 @@ export default function HomePage() {
         <Stat label="Tenants" value={stats.data?.tenants} />
       </section>
 
+      {browseBlock}
+
       <section id="about" className="landing-section">
         <h2>About NestFinds</h2>
         <p>
@@ -282,14 +305,5 @@ export default function HomePage() {
         </p>
       </section>
     </main>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number | undefined }) {
-  return (
-    <div className="stat">
-      <div className="stat-value">{value ?? "–"}</div>
-      <div className="stat-label">{label}</div>
-    </div>
   );
 }

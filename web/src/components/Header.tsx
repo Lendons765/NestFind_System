@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import ConfirmDialog from "./ConfirmDialog";
 import Logo from "./Logo";
@@ -7,7 +7,14 @@ import Logo from "./Logo";
 export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close the mobile menu after moving to another page.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
 
   function handleConfirmLogout() {
     setConfirmOpen(false);
@@ -16,8 +23,20 @@ export default function Header() {
   }
 
   return (
-    <header className="nf-header">
+    <header className={`nf-header${menuOpen ? " menu-open" : ""}`}>
       <Logo />
+
+      <button
+        type="button"
+        className="menu-toggle"
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((o) => !o)}
+      >
+        <span />
+        <span />
+        <span />
+      </button>
 
       <nav>
         <div className="nav-links">
@@ -31,7 +50,7 @@ export default function Header() {
           {user ? (
             <>
               {user.role === "tenant" && <Link to="/my-home">My home</Link>}
-              
+              {user.role === "tenant" && <Link to="/saved">Saved</Link>}
               {user.role === "owner" && <Link to="/my-listings">My listings</Link>}
               {user.role === "owner" && <Link to="/dashboard">Dashboard</Link>}
               {user.role === "owner" && <Link to="/inbox">Inbox</Link>}

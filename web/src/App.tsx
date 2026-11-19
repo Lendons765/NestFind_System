@@ -17,6 +17,7 @@ import ListingManagePage from "./pages/ListingManagePage";
 import LeasesPage from "./pages/LeasesPage";
 import TenantPortalPage from "./pages/TenantPortalPage";
 
+
 const queryClient = new QueryClient();
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/search" element={<ListingSearchPage />} />
             <Route path="/listings/:id" element={<ListingDetailPage />} />
+            
             <Route path="/login" element={<LoginPage />} />
             <Route path="/verify" element={<VerifyPage />} />
             <Route path="/forgot" element={<ForgotPasswordPage />} />

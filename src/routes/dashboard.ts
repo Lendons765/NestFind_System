@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { RowDataPacket } from "mysql2";
-import { pool } from "../db.js";
-import { requireAuth, requireRole } from "../auth.js";
+import { pool } from "../db";
+import { requireAuth, requireRole } from "../auth";
 
 export const dashboardRouter = Router();
 
@@ -97,23 +97,6 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
 
   const t = totals[0];
   const a = activity[0];
-  if (!t || !a) {
-    return res.json({
-      totals: { listings: 0, live: 0, drafts: 0, views: 0 },
-      activity: {
-        inquiries: 0,
-        applicants: 0,
-        new_applicants: 0,
-        viewing_requests: 0,
-        upcoming_viewings: 0,
-        leases_to_sign: 0,
-      },
-      listings: [],
-      recentInquiries: [],
-      recentApplicants: [],
-      upcomingViewings: [],
-    });
-  }
 
   res.json({
     totals: {

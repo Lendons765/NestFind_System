@@ -1,13 +1,18 @@
 {
+  
   // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
     "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "target": "es2023",
+    "rootDir": "./src",
+    "outDir": "./dist",
     "types": ["node"],
-    "lib": ["es2023"],
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
+    "target": "esnext",
+    // For nodejs:
+    // "lib": ["esnext"],
+    // "types": ["node"],
+    // and npm install -D @types/node
+
+    // Other Outputs
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
@@ -22,4 +27,5 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["web"]
+  
 }

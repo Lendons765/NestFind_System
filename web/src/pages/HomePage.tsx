@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchPublicStats } from "../api/dashboard";
+import { useAuth } from "../auth/AuthContext";
 import Logo from "../components/Logo";
 
 const propertyOptions = [
@@ -69,9 +70,38 @@ const icons = {
   ),
 };
 
+const roleLines: Record<string, { line: string; actions: { to: string; label: string }[] }> = {
+  tenant: {
+    line: "Here's where your search, messages, and move-in live.",
+    actions: [
+      { to: "/search", label: "Browse listings" },
+      { to: "/my-home", label: "My home" },
+      { to: "/saved", label: "Saved places" },
+      { to: "/leases", label: "Leases" },
+    ],
+  },
+  owner: {
+    line: "Your listings, inquiries, and applicants are all in one place.",
+    actions: [
+      { to: "/dashboard", label: "Dashboard" },
+      { to: "/my-listings", label: "My listings" },
+      { to: "/my-listings/new", label: "New listing" },
+      { to: "/inbox", label: "Inbox" },
+    ],
+  },
+};
+
+function timeOfDayGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function HomePage() {
   const navigate = useNavigate();
   const { hash } = useLocation();
+  const { user, loading } = useAuth();
   const [location, setLocation] = useState("");
   const [propertyType, setPropertyType] = useState("");
 
@@ -80,7 +110,6 @@ export default function HomePage() {
     queryFn: fetchPublicStats,
   });
 
-  // Header links like "/#about" scroll to that section.
   useEffect(() => {
     if (hash) document.querySelector(hash)?.scrollIntoView({ behavior: "smooth" });
   }, [hash]);
@@ -93,6 +122,68 @@ export default function HomePage() {
     navigate(`/search?${params.toString()}`);
   }
 
+  // Logged-in users get a greeting instead of the big logo hero.
+  if (!loading && user) {
+    const firstName = user.fullName.split(" ")[0];
+    const copy = roleLines[user.role] ?? roleLines.tenant;
+
+    return (
+      <main className="landing">
+        <section className="greeting-hero">
+          <p className="greeting-kicker">{timeOfDayGreeting()}</p>
+          <h1 className="greeting-title">Welcome, {firstName}</h1>
+          <p className="greeting-line">{copy.line}</p>
+
+          <form className="landing-search greeting-search" onSubmit={handleSearch}>
+            <span className="search-icon">{icons.pin}</span>
+            <input
+              className="search-input"
+              aria-label="Location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Search location (e.g. Cebu City, Lapu-Lapu, etc.)"
+            />
+            <span className="search-divider" />
+            <div className="type-field">
+              <span className="type-icon">{icons.sliders}</span>
+              <select
+                aria-label="Property type"
+                value={propertyType}
+                onChange={(e) => setPropertyType(e.target.value)}
+              >
+                {propertyOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <span className="type-chevron">{icons.chevron}</span>
+            </div>
+            <button type="submit" className="search-submit" aria-label="Search">
+              {icons.search}
+            </button>
+          </form>
+
+          <div className="greeting-actions">
+            {copy.actions.map((a) => (
+              <Link key={a.to} to={a.to} className="greeting-chip">
+                {a.label}
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="stats">
+          <Stat label="Live listings" value={stats.data?.live_listings} />
+          <Stat label="Barangays covered" value={stats.data?.barangays} />
+          <Stat label="Property owners" value={stats.data?.owners} />
+          <Stat label="Tenants" value={stats.data?.tenants} />
+        </section>
+      </main>
+    );
+  }
+
+  // Visitors see the full hero.
   return (
     <main className="landing">
       <section className="landing-hero">
@@ -119,9 +210,7 @@ export default function HomePage() {
               onChange={(e) => setLocation(e.target.value)}
               placeholder="Search location (e.g. Cebu City, Lapu-Lapu, etc.)"
             />
-
             <span className="search-divider" />
-
             <div className="type-field">
               <span className="type-icon">{icons.sliders}</span>
               <select
@@ -137,7 +226,6 @@ export default function HomePage() {
               </select>
               <span className="type-chevron">{icons.chevron}</span>
             </div>
-
             <button type="submit" className="search-submit" aria-label="Search">
               {icons.search}
             </button>
@@ -146,35 +234,19 @@ export default function HomePage() {
           <ul className="feature-row">
             <li>
               {icons.verified}
-              <span>
-                Verified
-                <br />
-                Listings
-              </span>
+              <span>Verified<br />Listings</span>
             </li>
             <li>
               {icons.affordable}
-              <span>
-                Affordable
-                <br />
-                Options
-              </span>
+              <span>Affordable<br />Options</span>
             </li>
             <li>
               {icons.student}
-              <span>
-                Student
-                <br />
-                Friendly
-              </span>
+              <span>Student<br />Friendly</span>
             </li>
             <li>
               {icons.secure}
-              <span>
-                Safe &amp;
-                <br />
-                Secure
-              </span>
+              <span>Safe &amp;<br />Secure</span>
             </li>
           </ul>
         </div>

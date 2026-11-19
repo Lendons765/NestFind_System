@@ -87,7 +87,7 @@ export default function LoginPage() {
           </div>
         </section>
 
-        <section className="auth-panel">
+        <section className="auth-panel" key={mode}>
           <h1>{isRegister ? "Create an account" : "Welcome back"}</h1>
           <p className="auth-switch">
             {isRegister ? (

@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+/nestfind.sql
 node_modules/
 uploads/
 dist/

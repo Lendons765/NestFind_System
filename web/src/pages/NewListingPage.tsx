@@ -11,7 +11,7 @@ import {
   uploadListingPhoto,
 } from "../api/owner";
 import { fetchLocations } from "../api/locations";
-import type { ListingPhoto, NewListingInput } from "../types";
+import type { ListingPhoto, NewListingInput } from "../type";
 
 const API_BASE = "http://localhost:4000";
 const MAX_PHOTOS = 10;

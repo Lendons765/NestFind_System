@@ -14,6 +14,7 @@ export interface ListingDetail {
   property_type: PropertyType;
   monthly_rent: string | number;
   bedrooms: number | null;
+  view_count?: number;
   is_furnished: number;
   has_aircon: number;
   has_wifi: number;

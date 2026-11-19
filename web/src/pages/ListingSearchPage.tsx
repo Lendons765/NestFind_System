@@ -3,7 +3,8 @@ import type { FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { searchListings } from "../api/listings";
-import type { ListingSummary, SearchFilters } from "../type";
+import type { ListingSummary, SearchFilters } from "../types";
+
 
 const API_BASE = "http://localhost:4000";
 
@@ -85,44 +86,49 @@ function ListingCard({ listing }: { listing: ListingSummary }) {
   ].filter(Boolean) as string[];
 
   return (
-    <Link to={`/listings/${listing.id}`} className="card-link">
-      <div className="card">
-        {listing.cover_url ? (
-          <img
-            className="card-photo"
-            src={`${API_BASE}${listing.cover_url}`}
-            alt={listing.title}
-            loading="lazy"
-          />
-        ) : (
-          <div className="card-photo card-photo-empty" aria-hidden="true" />
-        )}
-
-        <div className="card-badges">
-          {listing.is_featured === 1 && <span className="badge">Featured</span>}
-          {listing.verification === "verified" && <span className="verified">✓ Verified</span>}
+    <div className="listing-tile">
+      <Link to={`/listings/${listing.id}`} className="listing-tile-link">
+        <div className="listing-photo">
+          {listing.cover_url ? (
+            <img src={`${API_BASE}${listing.cover_url}`} alt={listing.title} loading="lazy" />
+          ) : (
+            <div className="listing-photo-empty" aria-hidden="true">
+              <span>No photo yet</span>
+            </div>
+          )}
+          <div className="listing-badges">
+            {listing.is_featured === 1 && <span className="badge-featured">Featured</span>}
+            {listing.verification === "verified" && <span className="badge-verified">✓ Verified</span>}
+          </div>
         </div>
 
-        <h3>{listing.title}</h3>
-        <p className="muted">
-          {listing.barangay}, {listing.city}
-        </p>
-        <p className="price">{formatPeso(listing.monthly_rent)}</p>
-        <p className="muted">
-          {listing.bedrooms === 0 ? "Studio layout" : `${listing.bedrooms ?? "—"} bedroom(s)`}
-          {tags.length > 0 && ` · ${tags.join(" · ")}`}
-        </p>
-      </div>
-    </Link>
+        <div className="listing-body">
+          <p className="listing-price">{formatPeso(listing.monthly_rent)}</p>
+          <h3>{listing.title}</h3>
+          <p className="listing-place">
+            {listing.barangay}, {listing.city}
+          </p>
+          <p className="listing-meta">
+            {listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms ?? "—"} bedroom(s)`}
+          </p>
+          {tags.length > 0 && (
+            <div className="listing-tags">
+              {tags.map((t) => (
+                <span key={t}>{t}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </Link>
+      
+    </div>
   );
 }
 
 export default function ListingSearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlKey = searchParams.toString();
-  // The filters that are actually applied come from the URL.
   const applied = filtersFromParams(new URLSearchParams(urlKey));
-  // The draft holds what the user is typing before they press Search.
   const [draft, setDraft] = useState<SearchFilters>(applied);
 
   useEffect(() => {
@@ -135,14 +141,14 @@ export default function ListingSearchPage() {
   });
 
   function set<K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) {
-    setDraft((prev: SearchFilters) => ({ ...prev, [key]: value }));
+    setDraft((prev) => ({ ...prev, [key]: value }));
   }
 
   function toggleAmenity(value: string) {
-    setDraft((prev: SearchFilters) => ({
+    setDraft((prev) => ({
       ...prev,
       amenities: prev.amenities.includes(value)
-        ? prev.amenities.filter((a: string) => a !== value)
+        ? prev.amenities.filter((a) => a !== value)
         : [...prev.amenities, value],
     }));
   }
@@ -165,90 +171,110 @@ export default function ListingSearchPage() {
   const hasFilters = urlKey !== "";
 
   return (
-    <main className="page">
-      <h1>Find your next home in Cebu</h1>
+    <main className="browse-page">
+      <header className="browse-hero">
+        <h1>Find your next home in Cebu</h1>
+        <p>Verified listings, direct messages with owners, and viewings you can book in a few taps.</p>
+      </header>
 
-      <form className="filters" onSubmit={handleSubmit}>
-        <label>
-          Location
-          <input
-            placeholder="e.g. Lahug, Cebu City"
-            value={draft.q}
-            onChange={(e) => set("q", e.target.value)}
-          />
-        </label>
+      <form className="browse-filters" onSubmit={handleSubmit}>
+        <div className="filter-grid">
+          <label className="filter-field">
+            <span>Location</span>
+            <input
+              placeholder="e.g. Lahug, Cebu City"
+              value={draft.q}
+              onChange={(e) => set("q", e.target.value)}
+            />
+          </label>
 
-        <label>
-          Barangay
-          <select value={draft.barangay} onChange={(e) => set("barangay", e.target.value)}>
-            <option value="">Any barangay</option>
-            <option value="Lahug">Lahug</option>
-            <option value="Banilad">Banilad</option>
-            <option value="IT Park">IT Park</option>
-          </select>
-        </label>
+          <label className="filter-field">
+            <span>Barangay</span>
+            <select value={draft.barangay} onChange={(e) => set("barangay", e.target.value)}>
+              <option value="">Any barangay</option>
+              <option value="Lahug">Lahug</option>
+              <option value="Banilad">Banilad</option>
+              <option value="IT Park">IT Park</option>
+            </select>
+          </label>
 
-        <label>
-          Property type
-          <select value={draft.propertyType} onChange={(e) => set("propertyType", e.target.value)}>
-            {propertyTypes.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="filter-field">
+            <span>Property type</span>
+            <select value={draft.propertyType} onChange={(e) => set("propertyType", e.target.value)}>
+              {propertyTypes.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          Bedrooms
-          <select value={draft.bedrooms} onChange={(e) => set("bedrooms", e.target.value)}>
-            {bedroomOptions.map((b) => (
-              <option key={b.value} value={b.value}>
-                {b.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="filter-field">
+            <span>Bedrooms</span>
+            <select value={draft.bedrooms} onChange={(e) => set("bedrooms", e.target.value)}>
+              {bedroomOptions.map((b) => (
+                <option key={b.value} value={b.value}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label>
-          Max rent (₱)
-          <input
-            type="number"
-            min="0"
-            placeholder="e.g. 10000"
-            value={draft.maxRent}
-            onChange={(e) => set("maxRent", e.target.value)}
-          />
-        </label>
+          <label className="filter-field">
+            <span>Max rent (₱)</span>
+            <input
+              type="number"
+              min="0"
+              placeholder="e.g. 10000"
+              value={draft.maxRent}
+              onChange={(e) => set("maxRent", e.target.value)}
+            />
+          </label>
+        </div>
 
-        <fieldset className="amenity-group">
-          <legend>Amenities</legend>
-          {amenityOptions.map((a) => (
-            <label key={a.value} className="check">
-              <input
-                type="checkbox"
-                checked={draft.amenities.includes(a.value)}
-                onChange={() => toggleAmenity(a.value)}
-              />
-              {a.label}
-            </label>
-          ))}
-        </fieldset>
+        <div className="amenity-row">
+          <span className="amenity-label">Amenities</span>
+          <div className="amenity-pills">
+            {amenityOptions.map((a) => {
+              const on = draft.amenities.includes(a.value);
+              return (
+                <button
+                  key={a.value}
+                  type="button"
+                  className={`amenity-pill${on ? " on" : ""}`}
+                  aria-pressed={on}
+                  onClick={() => toggleAmenity(a.value)}
+                >
+                  {on && <span aria-hidden="true">✓</span>}
+                  {a.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-        <div className="filters-actions">
-          <button type="submit">Search</button>
-          <button type="button" className="clear" onClick={clearAll} disabled={!hasFilters}>
-            Clear filters
+        <div className="filter-actions">
+          <button type="submit" className="btn-search">
+            Search listings
+          </button>
+          <button type="button" className="btn-clear" onClick={clearAll} disabled={!hasFilters}>
+            Clear all
           </button>
         </div>
       </form>
 
-      <div className="toolbar">
-        <p className="result-count">
-          {data ? `${count} listing${count === 1 ? "" : "s"} found` : ""}
+      <div className="results-bar">
+        <p className="results-count">
+          {data ? (
+            <>
+              <strong>{count}</strong> listing{count === 1 ? "" : "s"} found
+            </>
+          ) : (
+            ""
+          )}
         </p>
-        <label className="sort-field">
-          Sort by
+        <label className="sort-control">
+          <span>Sort by</span>
           <select value={applied.sort} onChange={(e) => changeSort(e.target.value)}>
             {sortOptions.map((s) => (
               <option key={s.value} value={s.value}>
@@ -259,21 +285,30 @@ export default function ListingSearchPage() {
         </label>
       </div>
 
-      {isLoading && <p>Loading listings…</p>}
+      {isLoading && (
+        <div className="grid-skeleton">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="skeleton-tile" />
+          ))}
+        </div>
+      )}
+
       {isError && <p className="error">{(error as Error).message}</p>}
 
       {data && count === 0 && (
-        <div className="empty">
-          <p>No listings match your filters.</p>
+        <div className="empty-state">
+          <div className="empty-icon" aria-hidden="true">⌂</div>
+          <h2>No places match these filters</h2>
+          <p>Try a wider rent range, another barangay, or fewer amenities.</p>
           {hasFilters && (
-            <button type="button" className="clear" onClick={clearAll}>
-              Clear filters
+            <button type="button" className="btn-clear" onClick={clearAll}>
+              Clear all filters
             </button>
           )}
         </div>
       )}
 
-      <div className="grid">
+      <div className="listing-grid">
         {data?.map((listing) => (
           <ListingCard key={listing.id} listing={listing} />
         ))}

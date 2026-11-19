@@ -11,7 +11,13 @@ import {
   fetchTenantViewings,
   sendTenantMessage,
 } from "../api/tenant";
-import type { LeaseRow, MyApplication, TenantConversation, TenantViewing } from "../type";
+import type {
+  ApplicationStatus,
+  LeaseRow,
+  MyApplication,
+  TenantConversation,
+  TenantViewing,
+} from "../types";
 
 type Tab = "overview" | "messages" | "viewings" | "movein";
 
@@ -21,6 +27,14 @@ const tabs: { key: Tab; label: string }[] = [
   { key: "viewings", label: "Viewings" },
   { key: "movein", label: "Move-in" },
 ];
+
+const appLabel: Record<ApplicationStatus, string> = {
+  submitted: "Sent to owner",
+  under_review: "Under review",
+  approved: "Approved",
+  rejected: "Declined",
+  withdrawn: "Withdrawn",
+};
 
 const viewingLabel: Record<TenantViewing["status"], string> = {
   requested: "Waiting for owner",
@@ -44,6 +58,28 @@ function formatDate(v: string | null | undefined) {
 
 function formatWhen(v: string) {
   return new Date(v).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+}
+
+/**
+ * One sentence that always matches the counts and the lease status.
+ */
+function nextStep(apps: MyApplication[], leases: LeaseRow[], upcoming: number): string {
+  const waitingSignature = leases.find(
+    (l) => l.my_role === "tenant" && !l.tenant_signed_at && l.status !== "cancelled" && l.status !== "ended"
+  );
+  if (waitingSignature) return "Your lease is ready. Read it and sign on the Leases page.";
+
+  const approved = apps.find((a) => a.status === "approved" && !a.lease_id);
+  if (approved) return "You were approved. The owner will send the lease to sign.";
+
+  const pending = apps.find((a) => a.status === "submitted" || a.status === "under_review");
+  if (pending) return "Your application is with the owner. You'll see the result here.";
+
+  if (upcoming > 0) return `You have ${upcoming} upcoming viewing(s). Check the Viewings tab.`;
+
+  if (apps.length === 0) return "Find a place you like and send an application.";
+
+  return "You're all caught up.";
 }
 
 function ConversationCard({ conv, token }: { conv: TenantConversation; token: string }) {
@@ -77,7 +113,7 @@ function ConversationCard({ conv, token }: { conv: TenantConversation; token: st
       </div>
 
       <div className="thread">
-        {conv.messages.map((m: { fromMe: boolean; senderName: string; sentAt: string; body: string }, i: number) => (
+        {conv.messages.map((m, i) => (
           <div key={i} className={`bubble${m.fromMe ? " me" : ""}`}>
             <div className="bubble-meta">
               {m.fromMe ? "You" : m.senderName} · {formatWhen(m.sentAt)}
@@ -217,37 +253,37 @@ export default function TenantPortalPage() {
   }
 
   const myLeases = (leases.data ?? []).filter((l) => l.my_role === "tenant");
-  const upcoming = (viewings.data ?? []).filter(
-    (v) => v.status === "requested" || v.status === "confirmed"
-  );
   const apps: MyApplication[] = applications.data ?? [];
+  const upcoming = (viewings.data ?? []).filter(
+    (v) => (v.status === "requested" || v.status === "confirmed") && new Date(v.scheduled_at) > new Date()
+  );
+
+  const counts: Record<Tab, number | undefined> = {
+    overview: undefined,
+    messages: conversations.data?.length,
+    viewings: upcoming.length,
+    movein: myLeases.length,
+  };
 
   return (
     <main className="page">
-      <h1>My home</h1>
+      <div className="owner-toolbar">
+        <h1 style={{ margin: 0 }}>My home</h1>
+        <Link to="/search" className="button-link">Browse listings</Link>
+      </div>
 
       <div className="owner-tabs portal-tabs">
-        {tabs.map((t) => {
-          const count =
-            t.key === "messages"
-              ? conversations.data?.length
-              : t.key === "viewings"
-                ? upcoming.length
-                : t.key === "movein"
-                  ? myLeases.length
-                  : undefined;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              className={`tab-btn ${tab === t.key ? "active" : ""}`}
-              onClick={() => setTab(t.key)}
-            >
-              {t.label}
-              {count !== undefined && <span className="tab-count">{count}</span>}
-            </button>
-          );
-        })}
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`tab-btn ${tab === t.key ? "active" : ""}`}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+            {counts[t.key] !== undefined && <span className="tab-count">{counts[t.key]}</span>}
+          </button>
+        ))}
       </div>
 
       {tab === "overview" && (
@@ -261,26 +297,27 @@ export default function TenantPortalPage() {
             <Stat label="Leases" value={summary.data?.leases} />
           </div>
 
-          <section className="inquiry-card">
-            <h2>Next steps</h2>
-            {apps.length === 0 && (
-              <p>
-                You haven't applied for a place yet. <Link to="/search">Browse listings</Link>.
-              </p>
-            )}
-            {apps.some((a) => a.status === "submitted" || a.status === "under_review") && (
-              <p>Your application is with the owner. You'll see the result here.</p>
-            )}
-            {apps.some((a) => a.status === "approved") && myLeases.length === 0 && (
-              <p>Your application was approved. The owner will send a lease to sign.</p>
-            )}
-            {upcoming.length > 0 && (
-              <p>You have {upcoming.length} upcoming viewing(s). Check the Viewings tab.</p>
-            )}
-            {myLeases.some((l) => l.status !== "fully_signed" && l.status !== "active") && (
-              <p>A lease is waiting for your signature. Open <Link to="/leases">Leases</Link>.</p>
-            )}
+          <section className="inquiry-card next-step">
+            <h2>Next step</h2>
+            <p>{nextStep(apps, myLeases, upcoming.length)}</p>
           </section>
+
+          {apps.length > 0 && (
+            <section className="inquiry-card">
+              <h2>Your applications</h2>
+              {apps.map((a) => (
+                <div key={a.id} className="queue-row">
+                  <Link to={`/listings/${a.listing_id}`}>{a.title}</Link>
+                  <div className="muted">
+                    {a.barangay} · Applied {formatDate(a.created_at)} ·{" "}
+                    <span className={a.status === "approved" ? "pill pill-confirmed" : "pill pill-requested"}>
+                      {appLabel[a.status]}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
 
           <section className="inquiry-card">
             <h2>Quick links</h2>
@@ -297,9 +334,7 @@ export default function TenantPortalPage() {
           {conversations.isLoading && <p>Loading messages…</p>}
           {conversations.isError && <p className="error">{(conversations.error as Error).message}</p>}
           {conversations.data?.length === 0 && (
-            <p>
-              No messages yet. Send an inquiry from a listing to start a conversation.
-            </p>
+            <p>No messages yet. Send an inquiry from a listing to start a conversation.</p>
           )}
           {conversations.data?.map((c) => (
             <ConversationCard key={c.id} conv={c} token={token} />

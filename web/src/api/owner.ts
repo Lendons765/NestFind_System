@@ -71,15 +71,38 @@ export function fetchListingForEdit(token: string, listingId: string): Promise<O
   return authedRequest<OwnerListingDetail>(token, `/api/owner/listings/${encodeURIComponent(listingId)}`);
 }
 
-export function saveListingEdits(
+export async function saveListingEdits(
   token: string,
   listingId: string,
   input: NewListingInput
 ): Promise<{ id: string; status: string }> {
-  return authedRequest(token, `/api/owner/listings/${encodeURIComponent(listingId)}`, {
-    method: "PATCH",
-    body: JSON.stringify(input),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/owner/listings/${encodeURIComponent(listingId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(input),
+        signal: controller.signal,
+      }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error ?? `Save failed (${res.status})`);
+    return data;
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      throw new Error("The server took too long to respond. Check that the API is running, then try again.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function uploadListingPhoto(token: string, listingId: string, file: File): Promise<ListingPhoto> {

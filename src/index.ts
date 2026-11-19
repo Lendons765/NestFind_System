@@ -12,10 +12,13 @@ import { listingEditingRouter } from "./routes/listingEditing.js";
 import { listingMediaRouter } from "./routes/listingMedia.js";
 import { leasingRouter } from "./routes/leasing.js";
 import { tenantRouter } from "./routes/tenant.js";
+import { dashboardRouter } from "./routes/dashboard.js";
 
 const app = express();
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173"],
+  origin: process.env.CLIENT_URL?.split(",") || [
+    "http://localhost:5173"
+  ],
 }));
 app.use(express.json());
 
@@ -31,5 +34,9 @@ app.use("/api/auth/password", passwordRouter);
 app.use("/api/owner/listings", listingEditingRouter);
 app.use("/api/listings", listingMediaRouter);
 app.use("/api/tenant", tenantRouter);
+app.use("/api/dashboard", dashboardRouter);
 const port = Number(process.env.PORT) || 4000;
-app.listen(port, () => console.log(`API running on http://localhost:${port}`));
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`API running on port ${port}`);
+});

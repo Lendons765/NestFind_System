@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, DragEvent, FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
@@ -11,11 +11,16 @@ import {
   uploadListingPhoto,
 } from "../api/owner";
 import { fetchLocations } from "../api/locations";
-import type { ListingPhoto, NewListingInput } from "../type";
+import type { ListingPhoto, NewListingInput } from "../types";
 
 const API_BASE = "http://localhost:4000";
+const MAX_PHOTOS = 10;
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_BYTES = 5 * 1024 * 1024;
 
 type Amenity = "isFurnished" | "hasAircon" | "hasWifi" | "hasParking" | "hasGym";
+type SaveTarget = "stay" | "list";
+type FieldKey = "title" | "locationId" | "monthlyRent" | "bedrooms" | "description";
 
 const amenityOptions: { key: Amenity; label: string }[] = [
   { key: "isFurnished", label: "Furnished" },
@@ -26,12 +31,17 @@ const amenityOptions: { key: Amenity; label: string }[] = [
 ];
 
 const propertyTypes = [
-  { value: "studio", label: "Studio" },
-  { value: "boarding_house", label: "Boarding house" },
-  { value: "apartment", label: "Apartment" },
-  { value: "condo", label: "Condo" },
-  { value: "house", label: "House" },
-  { value: "other", label: "Other" },
+  { value: "studio", label: "Studio", bedrooms: "0", hint: "One room with a private bathroom." },
+  {
+    value: "boarding_house",
+    label: "Boarding house",
+    bedrooms: "1",
+    hint: "Rooms for students or workers, often with shared facilities.",
+  },
+  { value: "apartment", label: "Apartment", bedrooms: "2", hint: "A full unit with separate rooms." },
+  { value: "condo", label: "Condo", bedrooms: "2", hint: "A unit in a condominium building." },
+  { value: "house", label: "House", bedrooms: "3", hint: "A standalone house or townhouse." },
+  { value: "other", label: "Other", bedrooms: "", hint: "Anything that doesn't fit the options above." },
 ];
 
 interface FormState {
@@ -51,7 +61,7 @@ const initialState: FormState = {
   propertyType: "studio",
   locationId: "",
   monthlyRent: "",
-  bedrooms: "",
+  bedrooms: "0",
   description: "",
   addressLine: "",
   houseRules: "",
@@ -64,58 +74,201 @@ const initialState: FormState = {
   },
 };
 
-function PhotoManager({
-  listingId,
-  token,
-  photos,
+function validate(f: FormState): Partial<Record<FieldKey, string>> {
+  const e: Partial<Record<FieldKey, string>> = {};
+  const title = f.title.trim();
+
+  if (!title) e.title = "Add a title, such as “Studio near IT Park”.";
+  else if (title.length > 255) e.title = "Keep the title under 255 characters.";
+
+  if (!f.locationId) e.locationId = "Choose the barangay where the place is.";
+
+  const rent = Number(f.monthlyRent);
+  if (f.monthlyRent === "" || !(rent > 0)) e.monthlyRent = "Enter a monthly rent above ₱0.";
+  else if (rent > 10_000_000) e.monthlyRent = "That amount is too high. Check the rent.";
+
+  if (f.bedrooms !== "") {
+    const b = Number(f.bedrooms);
+    if (!Number.isInteger(b) || b < 0 || b > 20) e.bedrooms = "Use a whole number from 0 to 20.";
+  }
+
+  if (f.description.length > 2000) e.description = "Keep the description under 2,000 characters.";
+
+  return e;
+}
+
+function toInput(f: FormState): NewListingInput {
+  return {
+    title: f.title.trim(),
+    propertyType: f.propertyType,
+    locationId: Number(f.locationId),
+    monthlyRent: Number(f.monthlyRent),
+    bedrooms: f.bedrooms === "" ? undefined : Number(f.bedrooms),
+    description: f.description.trim() || undefined,
+    addressLine: f.addressLine.trim() || undefined,
+    houseRules: f.houseRules.trim() || undefined,
+    ...f.amenities,
+  };
+}
+
+function formatPeso(value: number | string) {
+  return `₱${Number(value).toLocaleString("en-PH")}`;
+}
+
+function ListingPreview({
+  title,
+  rent,
+  bedrooms,
+  place,
+  typeLabel,
+  amenities,
+  description,
+  coverUrl,
 }: {
-  listingId: string;
-  token: string;
-  photos: ListingPhoto[];
+  title: string;
+  rent: number;
+  bedrooms: string;
+  place: string;
+  typeLabel: string;
+  amenities: string[];
+  description: string;
+  coverUrl: string | null;
 }) {
-  const queryClient = useQueryClient();
+  const bedroomText =
+    bedrooms === "" ? "Bedrooms not stated" : bedrooms === "0" ? "Studio layout" : `${bedrooms} bedroom(s)`;
+  const desc = description.trim();
+
+  return (
+    <section className="preview-card">
+      <p className="preview-label">Preview: how tenants see it</p>
+      <div className="preview-photo">
+        {coverUrl ? <img src={`${API_BASE}${coverUrl}`} alt="" /> : <span>No photo yet</span>}
+      </div>
+      <div className="preview-body">
+        <h3>{title.trim() || "Your listing title"}</h3>
+        <p className="muted">
+          {place} · {typeLabel}
+        </p>
+        <p className="price">{rent > 0 ? `${formatPeso(rent)}/mo` : "Set a rent"}</p>
+        <p className="muted">{bedroomText}</p>
+        {amenities.length > 0 && (
+          <div className="preview-tags">
+            {amenities.map((a) => (
+              <span key={a}>{a}</span>
+            ))}
+          </div>
+        )}
+        {desc && (
+          <p className="preview-desc">
+            {desc.slice(0, 140)}
+            {desc.length > 140 ? "…" : ""}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Completeness({ items }: { items: { done: boolean; label: string }[] }) {
+  const done = items.filter((i) => i.done).length;
+  const percent = Math.round((done / items.length) * 100);
+
+  return (
+    <section className="inquiry-card completeness">
+      <div className="owner-card-head">
+        <h3>Listing strength</h3>
+        <strong>{percent}%</strong>
+      </div>
+      <div className="progress-track">
+        <div className="progress-fill" style={{ width: `${percent}%` }} />
+      </div>
+      <ul className="checklist">
+        {items.map((i) => (
+          <li key={i.label} className={`check-item${i.done ? " done" : ""}`}>
+            <span className="dot" />
+            {i.label}
+          </li>
+        ))}
+      </ul>
+      {percent < 100 && <p className="muted">Complete listings get more inquiries.</p>}
+    </section>
+  );
+}
+
+/**
+ * Photo picker. Works before a draft exists (files stay in memory until save)
+ * and after (EditPhotos uploads immediately).
+ */
+function PhotoPicker({
+  pending,
+  onAdd,
+  onRemove,
+  saved,
+}: {
+  pending: File[];
+  onAdd: (files: File[]) => void;
+  onRemove: (index: number) => void;
+  saved: ListingPhoto[];
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const total = saved.length + pending.length;
+  const full = total >= MAX_PHOTOS;
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["owner-listing"] });
+  function addFiles(list: FileList | File[] | null | undefined) {
+    if (!list) return;
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const file of Array.from(list)) {
+      if (!ALLOWED_TYPES.includes(file.type)) rejected.push(`${file.name} isn't JPG, PNG, or WebP`);
+      else if (file.size > MAX_BYTES) rejected.push(`${file.name} is over 5 MB`);
+      else accepted.push(file);
+    }
+    const room = MAX_PHOTOS - total;
+    const kept = accepted.slice(0, Math.max(room, 0));
+    if (accepted.length > kept.length) rejected.push(`Only ${MAX_PHOTOS} photos per listing`);
 
-  const upload = useMutation({
-    mutationFn: (file: File) => uploadListingPhoto(token, listingId, file),
-    onSuccess: () => {
-      setPhotoError(null);
-      if (inputRef.current) inputRef.current.value = "";
-      refresh();
-    },
-    onError: (err) => setPhotoError((err as Error).message),
-  });
+    setError(rejected.length ? rejected.join(". ") : null);
+    if (kept.length) onAdd(kept);
+    if (inputRef.current) inputRef.current.value = "";
+  }
 
-  const remove = useMutation({
-    mutationFn: (photoId: string) => deleteListingPhoto(token, listingId, photoId),
-    onSuccess: () => {
-      refresh();
-    },
-  });
+  function handleChange(e: ChangeEvent<HTMLInputElement>) {
+    addFiles(e.target.files);
+  }
 
-  function handleFile(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) upload.mutate(file);
+  function handleDrop(e: DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+    setDragging(false);
+    if (!full) addFiles(e.dataTransfer.files);
   }
 
   return (
-    <section className="inquiry-card">
-      <h3>Photos ({photos.length}/10)</h3>
+    <section className="inquiry-card photo-panel">
+      <div className="owner-card-head">
+        <h3>Photos</h3>
+        <span className="muted">
+          {total}/{MAX_PHOTOS}
+        </span>
+      </div>
+      <p className="muted">Listings with 3 or more photos get more inquiries. The first photo is the cover.</p>
 
-      {photos.length > 0 && (
+      {(saved.length > 0 || pending.length > 0) && (
         <div className="photo-grid">
-          {photos.map((p) => (
+          {saved.map((p, i) => (
             <figure key={p.id}>
-              <img src={`${API_BASE}${p.url}`} alt="Listing photo" />
-              <button
-                type="button"
-                className="secondary"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate(p.id)}
-              >
+              <img src={`${API_BASE}${p.url}`} alt={`Photo ${i + 1}`} />
+              {i === 0 && <span className="cover-tag">Cover</span>}
+              <span className="photo-state">Saved</span>
+            </figure>
+          ))}
+          {pending.map((file, i) => (
+            <figure key={`${file.name}-${i}`}>
+              <PendingThumb file={file} />
+              {saved.length === 0 && i === 0 && <span className="cover-tag">Cover</span>}
+              <span className="photo-state pending">Not saved yet</span>
+              <button type="button" className="secondary" onClick={() => onRemove(i)}>
                 Remove
               </button>
             </figure>
@@ -123,21 +276,42 @@ function PhotoManager({
         </div>
       )}
 
-      <label className="upload">
-        Add a photo (JPG, PNG, or WebP, up to 5 MB)
+      <label
+        className={`photo-drop${dragging ? " over" : ""}${full ? " disabled" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+      >
         <input
           ref={inputRef}
           type="file"
+          multiple
           accept="image/jpeg,image/png,image/webp"
-          disabled={upload.isPending || photos.length >= 10}
-          onChange={handleFile}
+          disabled={full}
+          onChange={handleChange}
         />
+        <span>{full ? "Photo limit reached" : "Drop photos here or click to choose"}</span>
+        <small>JPG, PNG, or WebP, up to 5 MB each</small>
       </label>
 
-      {upload.isPending && <p className="muted">Uploading…</p>}
-      {photoError && <p className="error">{photoError}</p>}
+      {error && <p className="error">{error}</p>}
     </section>
   );
+}
+
+function PendingThumb({ file }: { file: File }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  return url ? <img src={url} alt={file.name} /> : null;
 }
 
 export default function NewListingPage() {
@@ -146,9 +320,16 @@ export default function NewListingPage() {
   const { user, token, loading } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
   const [form, setForm] = useState<FormState>(initialState);
-  const [formError, setFormError] = useState<string | null>(null);
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const locations = useQuery({
     queryKey: ["locations"],
@@ -161,7 +342,6 @@ export default function NewListingPage() {
     enabled: isEditing && !!token && user?.role === "owner",
   });
 
-  // Fill the form once, when the listing loads. Later refreshes don't overwrite typing.
   useEffect(() => {
     const d = listing.data;
     if (!d || d.id === loadedId) return;
@@ -183,21 +363,52 @@ export default function NewListingPage() {
       },
     });
     setLoadedId(d.id);
+    setDirty(false);
   }, [listing.data, loadedId]);
 
+  useEffect(() => {
+    if (!dirty && pendingPhotos.length === 0) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, pendingPhotos.length]);
+
+  const errors = useMemo(() => validate(form), [form]);
+  const visibleErrors = submitted ? errors : {};
+
+  // Uploads queued photos one at a time into the given listing.
+  async function uploadQueued(listingId: string, files: File[]) {
+    setUploadError(null);
+    setUploadProgress({ done: 0, total: files.length });
+    let failed: string | null = null;
+    for (let i = 0; i < files.length; i++) {
+      try {
+        await uploadListingPhoto(token!, listingId, files[i]);
+        setUploadProgress({ done: i + 1, total: files.length });
+      } catch (err) {
+        failed = `${files[i].name}: ${(err as Error).message}`;
+        break;
+      }
+    }
+    setUploadProgress(null);
+    if (failed) setUploadError(`Some photos didn't upload. ${failed}`);
+    setPendingPhotos([]);
+    queryClient.invalidateQueries({ queryKey: ["owner-listing"] });
+    queryClient.invalidateQueries({ queryKey: ["owner-listings"] });
+  }
+
+  // Saves the listing as its own request, so a slow photo upload can't block it.
   const save = useMutation({
     mutationFn: (input: NewListingInput) =>
       isEditing ? saveListingEdits(token!, id!, input) : createListing(token!, input),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["owner-listings"] });
-      queryClient.invalidateQueries({ queryKey: ["owner-listing"] });
-      // A new listing opens its edit page right away, so photos can be added.
-      if (!isEditing) navigate(`/my-listings/${result.id}/edit`);
-    },
   });
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setDirty(true);
   }
 
   function toggleAmenity(key: Amenity) {
@@ -205,48 +416,54 @@ export default function NewListingPage() {
       ...prev,
       amenities: { ...prev.amenities, [key]: !prev.amenities[key] },
     }));
+    setDirty(true);
   }
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setFormError(null);
-
-    const rent = Number(form.monthlyRent);
-    const bedrooms = form.bedrooms === "" ? undefined : Number(form.bedrooms);
-
-    if (!form.title.trim()) {
-      setFormError("Enter a title for your listing.");
-      return;
-    }
-    if (!form.locationId) {
-      setFormError("Choose a location.");
-      return;
-    }
-    if (!(rent > 0)) {
-      setFormError("Enter a monthly rent greater than 0.");
-      return;
-    }
-    if (bedrooms !== undefined && (!Number.isInteger(bedrooms) || bedrooms < 0)) {
-      setFormError("Bedrooms must be a whole number.");
-      return;
-    }
-
-    save.mutate({
-      title: form.title.trim(),
-      propertyType: form.propertyType,
-      locationId: Number(form.locationId),
-      monthlyRent: rent,
-      bedrooms,
-      description: form.description.trim() || undefined,
-      addressLine: form.addressLine.trim() || undefined,
-      houseRules: form.houseRules.trim() || undefined,
-      ...form.amenities,
-    });
+  function pickType(value: string) {
+    const preset = propertyTypes.find((p) => p.value === value);
+    setForm((prev) => ({
+      ...prev,
+      propertyType: value,
+      bedrooms: prev.bedrooms === "" && preset ? preset.bedrooms : prev.bedrooms,
+    }));
+    setDirty(true);
   }
 
-  if (loading) {
-    return <main className="page"><p>Loading…</p></main>;
+  async function handleSave(target: SaveTarget) {
+    setSubmitted(true);
+    setSaveError(null);
+
+    const order: FieldKey[] = ["title", "locationId", "monthlyRent", "bedrooms", "description"];
+    const first = order.find((k) => errors[k]);
+    if (first) {
+      document.getElementById(`field-${first}`)?.focus();
+      return;
+    }
+
+    try {
+      const result = await save.mutateAsync(toInput(form));
+      const listingId = isEditing ? id! : (result as { id: string }).id;
+
+      setDirty(false);
+      setSavedAt(new Date());
+      queryClient.invalidateQueries({ queryKey: ["owner-listings"] });
+      queryClient.invalidateQueries({ queryKey: ["owner-listing"] });
+
+      if (pendingPhotos.length > 0) {
+        await uploadQueued(listingId, pendingPhotos);
+      }
+
+      if (target === "list") {
+        navigate("/my-listings");
+      } else if (!isEditing) {
+        navigate(`/my-listings/${listingId}/edit`, { replace: true });
+      }
+    } catch (err) {
+      setSaveError((err as Error).message);
+    }
   }
+
+  if (loading) return <main className="page"><p>Loading…</p></main>;
   if (!token || !user) {
     return (
       <main className="page">
@@ -277,125 +494,347 @@ export default function NewListingPage() {
 
   const current = listing.data;
   const readOnly = isEditing && !!current && current.status !== "draft";
+  const selectedLocation = locations.data?.find((l) => String(l.id) === form.locationId);
+  const place = selectedLocation ? `${selectedLocation.barangay}, ${selectedLocation.city}` : "Barangay not chosen";
+  const typeLabel = propertyTypes.find((t) => t.value === form.propertyType)?.label ?? "Property";
+  const amenityLabels = amenityOptions.filter((a) => form.amenities[a.key]).map((a) => a.label);
+  const savedPhotos = current?.photos ?? [];
+  const photoCount = savedPhotos.length + pendingPhotos.length;
+  const rent = Number(form.monthlyRent) || 0;
+  const yearly = rent > 0 ? rent * 12 : 0;
+  const descLength = form.description.trim().length;
+  const hasErrors = Object.keys(errors).length > 0;
+
+  const strength = [
+    { done: form.title.trim().length >= 5, label: "A clear title (5+ characters)" },
+    { done: !!form.locationId, label: "Barangay chosen" },
+    { done: rent > 0, label: "Monthly rent set" },
+    { done: form.bedrooms !== "", label: "Bedrooms stated" },
+    { done: amenityLabels.length >= 2, label: "At least 2 amenities" },
+    { done: descLength >= 80, label: "Description of 80+ characters" },
+    { done: photoCount >= 3, label: "3 or more photos" },
+  ];
+
+  const saveLabel = save.isPending
+    ? "Saving…"
+    : isEditing
+      ? "Save changes"
+      : pendingPhotos.length > 0
+        ? `Save and upload ${pendingPhotos.length} photo(s)`
+        : "Save";
 
   return (
-    <main className="page">
+    <main className="page listing-page">
       <Link to="/my-listings">← Back to my listings</Link>
-      <h1>{isEditing ? "Edit listing" : "New listing"}</h1>
+
+      <div className="listing-head">
+        <h1>{isEditing ? "Edit listing" : "New listing"}</h1>
+        {current && (
+          <span className={current.status === "draft" ? "pill pill-draft" : "pill pill-live"}>
+            {current.status === "draft" ? "Draft" : current.status === "active" ? "Live" : current.status}
+          </span>
+        )}
+      </div>
 
       {current?.verification === "rejected" && current.rejection_reason && (
-        <p className="warning">The admin asked for changes: {current.rejection_reason}</p>
+        <p className="warning">Changes requested: {current.rejection_reason}</p>
       )}
-      {readOnly && (
-        <p className="warning">
-          This listing is “{current!.status.replace("_", " ")}”, so its details can't be changed right now.
-        </p>
-      )}
+      {readOnly && <p className="warning">This listing is live, so its details are locked.</p>}
 
-      <fieldset disabled={readOnly} className="fieldset-reset">
-        <form className="inquiry-form" onSubmit={handleSubmit}>
-          <label>
-            Title
-            <input
-              required
-              value={form.title}
-              placeholder="e.g. Studio near IT Park"
-              onChange={(e) => set("title", e.target.value)}
-            />
-          </label>
+      <div className="listing-layout">
+        <form
+          className="listing-form"
+          noValidate
+          onSubmit={(e: FormEvent<HTMLFormElement>) => {
+            e.preventDefault();
+            handleSave("stay");
+          }}
+        >
+          <fieldset disabled={readOnly} className="fieldset-reset">
+            <section className="form-section">
+              <h2>The basics</h2>
 
-          <label>
-            Property type
-            <select value={form.propertyType} onChange={(e) => set("propertyType", e.target.value)}>
-              {propertyTypes.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Location
-            <select required value={form.locationId} onChange={(e) => set("locationId", e.target.value)}>
-              <option value="">Choose a location</option>
-              {locations.data?.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.barangay}, {l.city}
-                </option>
-              ))}
-            </select>
-            {locations.isError && <span className="error">Could not load locations.</span>}
-          </label>
-
-          <label>
-            Monthly rent (₱)
-            <input
-              type="number"
-              min="1"
-              required
-              value={form.monthlyRent}
-              onChange={(e) => set("monthlyRent", e.target.value)}
-            />
-          </label>
-
-          <label>
-            Bedrooms (0 for a studio)
-            <input
-              type="number"
-              min="0"
-              max="20"
-              value={form.bedrooms}
-              onChange={(e) => set("bedrooms", e.target.value)}
-            />
-          </label>
-
-          <div className="checkbox-grid">
-            {amenityOptions.map((a) => (
-              <label key={a.key} className="check">
+              <div className="field">
+                <label htmlFor="field-title">Title</label>
                 <input
-                  type="checkbox"
-                  checked={form.amenities[a.key]}
-                  onChange={() => toggleAmenity(a.key)}
+                  id="field-title"
+                  value={form.title}
+                  maxLength={255}
+                  placeholder="e.g. Studio near IT Park"
+                  aria-invalid={!!visibleErrors.title}
+                  onChange={(e) => set("title", e.target.value)}
                 />
-                {a.label}
-              </label>
-            ))}
-          </div>
+                {visibleErrors.title && <span className="field-error">{visibleErrors.title}</span>}
+              </div>
 
-          <label>
-            Description
-            <textarea rows={4} value={form.description} onChange={(e) => set("description", e.target.value)} />
-          </label>
+              <div className="field">
+                <span className="field-caption">Property type</span>
+                <div className="type-chips" role="group" aria-label="Property type">
+                  {propertyTypes.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      className={`type-chip${form.propertyType === t.value ? " active" : ""}`}
+                      aria-pressed={form.propertyType === t.value}
+                      onClick={() => pickType(t.value)}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="muted">{propertyTypes.find((t) => t.value === form.propertyType)?.hint}</span>
+              </div>
 
-          <label>
-            House rules (optional)
-            <textarea rows={3} value={form.houseRules} onChange={(e) => set("houseRules", e.target.value)} />
-          </label>
+              <div className="field">
+                <label htmlFor="field-locationId">Barangay</label>
+                <select
+                  id="field-locationId"
+                  value={form.locationId}
+                  aria-invalid={!!visibleErrors.locationId}
+                  disabled={locations.isLoading || locations.isError}
+                  onChange={(e) => set("locationId", e.target.value)}
+                >
+                  <option value="">{locations.isLoading ? "Loading barangays…" : "Choose a barangay"}</option>
+                  {locations.data?.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.barangay}, {l.city}
+                    </option>
+                  ))}
+                </select>
+                {locations.isError && (
+                  <span className="field-error">
+                    Couldn't load barangays.{" "}
+                    <button type="button" className="link-btn" onClick={() => locations.refetch()}>
+                      Try again
+                    </button>
+                  </span>
+                )}
+                {visibleErrors.locationId && <span className="field-error">{visibleErrors.locationId}</span>}
+              </div>
+            </section>
 
-          <label>
-            Address (optional)
-            <input value={form.addressLine} onChange={(e) => set("addressLine", e.target.value)} />
-            <span className="muted">Only you, and tenants with a confirmed viewing, can see the address.</span>
-          </label>
+            <section className="form-section">
+              <h2>Price and size</h2>
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="field-monthlyRent">Monthly rent (₱)</label>
+                  <input
+                    id="field-monthlyRent"
+                    type="number"
+                    min="1"
+                    inputMode="numeric"
+                    value={form.monthlyRent}
+                    aria-invalid={!!visibleErrors.monthlyRent}
+                    onChange={(e) => set("monthlyRent", e.target.value)}
+                  />
+                  {visibleErrors.monthlyRent ? (
+                    <span className="field-error">{visibleErrors.monthlyRent}</span>
+                  ) : yearly > 0 ? (
+                    <span className="muted">About {formatPeso(yearly)} a year</span>
+                  ) : null}
+                </div>
 
-          <button type="submit" disabled={save.isPending}>
-            {save.isPending ? "Saving…" : isEditing ? "Save changes" : "Save as draft"}
-          </button>
+                <div className="field">
+                  <label htmlFor="field-bedrooms">Bedrooms</label>
+                  <input
+                    id="field-bedrooms"
+                    type="number"
+                    min="0"
+                    max="20"
+                    value={form.bedrooms}
+                    aria-invalid={!!visibleErrors.bedrooms}
+                    onChange={(e) => set("bedrooms", e.target.value)}
+                  />
+                  {visibleErrors.bedrooms && <span className="field-error">{visibleErrors.bedrooms}</span>}
+                </div>
+              </div>
+            </section>
 
-          {formError && <p className="error">{formError}</p>}
-          {save.isError && <p className="error">{(save.error as Error).message}</p>}
+            <section className="form-section">
+              <h2>Amenities</h2>
+              <div className="amenity-chips">
+                {amenityOptions.map((a) => (
+                  <button
+                    key={a.key}
+                    type="button"
+                    className={`amenity-chip${form.amenities[a.key] ? " on" : ""}`}
+                    aria-pressed={form.amenities[a.key]}
+                    onClick={() => toggleAmenity(a.key)}
+                  >
+                    {form.amenities[a.key] ? "✓ " : ""}
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+              <span className="muted">Tenants filter by these, so tick everything that applies.</span>
+            </section>
+
+            <section className="form-section">
+              <h2>Describe the place</h2>
+              <div className="field">
+                <label htmlFor="field-description">Description</label>
+                <textarea
+                  id="field-description"
+                  rows={5}
+                  value={form.description}
+                  aria-invalid={!!visibleErrors.description}
+                  onChange={(e) => set("description", e.target.value)}
+                />
+                <div className="field-meta">
+                  {visibleErrors.description ? (
+                    <span className="field-error">{visibleErrors.description}</span>
+                  ) : (
+                    <span className="muted">Tip: mention the nearest landmark, transport, and what's included.</span>
+                  )}
+                  <span className={`char-count${form.description.length > 2000 ? " over" : ""}`}>
+                    {form.description.length}/2000
+                  </span>
+                </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="field-houseRules">House rules (optional)</label>
+                <textarea
+                  id="field-houseRules"
+                  rows={3}
+                  value={form.houseRules}
+                  onChange={(e) => set("houseRules", e.target.value)}
+                />
+              </div>
+            </section>
+
+            <section className="form-section">
+              <h2>Address</h2>
+              <div className="field">
+                <label htmlFor="field-addressLine">Street address (optional)</label>
+                <input
+                  id="field-addressLine"
+                  value={form.addressLine}
+                  onChange={(e) => set("addressLine", e.target.value)}
+                />
+                <span className="muted">Kept private. Tenants see it only after a confirmed viewing.</span>
+              </div>
+            </section>
+
+            {!isEditing && (
+              <section className="form-section">
+                <h2>Photos</h2>
+                <PhotoPicker
+                  pending={pendingPhotos}
+                  saved={[]}
+                  onAdd={(files) => setPendingPhotos((prev) => [...prev, ...files])}
+                  onRemove={(i) => setPendingPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                />
+              </section>
+            )}
+          </fieldset>
+
+          {!readOnly && (
+            <>
+              {submitted && hasErrors && <p className="error">Fix the highlighted fields to save.</p>}
+              {uploadProgress && (
+                <p className="muted">
+                  Uploading photo {uploadProgress.done + 1} of {uploadProgress.total}…
+                </p>
+              )}
+              {uploadError && <p className="error">{uploadError}</p>}
+
+              <div className="save-bar">
+                {saveError && <p className="error">{saveError}</p>}
+                {isEditing && savedAt && !dirty && !save.isPending && !saveError && (
+                  <span className="saved-note">
+                    Saved at {savedAt.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  disabled={save.isPending}
+                  onClick={() => handleSave("list")}
+                >
+                  Save and return
+                </button>
+                <button type="submit" disabled={save.isPending}>
+                  {saveLabel}
+                </button>
+              </div>
+            </>
+          )}
         </form>
-      </fieldset>
 
-      {isEditing && current && token && (
-        <PhotoManager listingId={current.id} token={token} photos={current.photos} />
-      )}
+        <aside className="listing-side">
+          <ListingPreview
+            title={form.title}
+            rent={rent}
+            bedrooms={form.bedrooms}
+            place={place}
+            typeLabel={typeLabel}
+            amenities={amenityLabels}
+            description={form.description}
+            coverUrl={savedPhotos[0]?.url ?? null}
+          />
 
-      {!isEditing && <p className="muted">After saving, you can add photos.</p>}
-      <p className="muted">
-        Saved listings stay hidden until you publish them from My listings.
-      </p>
+          <Completeness items={strength} />
+
+          {isEditing && current && token ? (
+            <EditPhotos listingId={current.id} token={token} photos={savedPhotos} />
+          ) : null}
+        </aside>
+      </div>
     </main>
+  );
+}
+
+/**
+ * Photo manager for an existing draft: uploads each chosen file right away.
+ */
+function EditPhotos({
+  listingId,
+  token,
+  photos,
+}: {
+  listingId: string;
+  token: string;
+  photos: ListingPhoto[];
+}) {
+  const queryClient = useQueryClient();
+  const [pending, setPending] = useState<File[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["owner-listing"] });
+
+  const remove = useMutation({
+    mutationFn: (photoId: string) => deleteListingPhoto(token, listingId, photoId),
+    onSuccess: refresh,
+  });
+
+  async function uploadAll(files: File[]) {
+    setError(null);
+    for (const file of files) {
+      try {
+        await uploadListingPhoto(token, listingId, file);
+      } catch (err) {
+        setError(`${file.name}: ${(err as Error).message}`);
+        break;
+      }
+    }
+    setPending([]);
+    refresh();
+  }
+
+  return (
+    <>
+      <PhotoPicker
+        pending={pending}
+        saved={photos}
+        onAdd={(files) => {
+          setPending((prev) => [...prev, ...files]);
+          uploadAll(files);
+        }}
+        onRemove={() => {}}
+      />
+      {error && <p className="error">{error}</p>}
+      {remove.isError && <p className="error">{(remove.error as Error).message}</p>}
+    </>
   );
 }

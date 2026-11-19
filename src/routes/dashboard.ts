@@ -1,11 +1,61 @@
 import { Router } from "express";
 import type { RowDataPacket } from "mysql2";
-import { pool } from "../db";
-import { requireAuth, requireRole } from "../auth";
+import { pool } from "../db.js";
+import { requireAuth, requireRole } from "../auth.js";
 
 export const dashboardRouter = Router();
 
 const n = (v: unknown) => Number(v ?? 0);
+
+interface ListingRow extends RowDataPacket {
+  id: number;
+  title: string;
+  status: string;
+  view_count: number;
+  inquiries: number;
+  applicants: number;
+  viewings: number;
+}
+
+interface InquiryRow extends RowDataPacket {
+  id: number;
+  created_at: string;
+  title: string;
+  tenant_name: string;
+}
+
+interface ApplicantRow extends RowDataPacket {
+  id: number;
+  status: string;
+  created_at: string;
+  title: string;
+  tenant_name: string;
+}
+
+interface ViewingRow extends RowDataPacket {
+  id: number;
+  scheduled_at: string;
+  status: string;
+  listing_id: number;
+  title: string;
+  tenant_name: string;
+}
+
+interface TotalsRow extends RowDataPacket {
+  listings: number;
+  live: number;
+  drafts: number;
+  views: number;
+}
+
+interface ActivityRow extends RowDataPacket {
+  inquiries: number;
+  applicants: number;
+  new_applicants: number;
+  viewing_requests: number;
+  upcoming_viewings: number;
+  leases_to_sign: number;
+}
 
 // GET /api/dashboard/public
 // Homepage numbers only. No personal data.
@@ -26,7 +76,7 @@ dashboardRouter.get("/public", async (_req, res) => {
 dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res) => {
   const id = req.user!.id;
 
-  const [totals] = await pool.query<RowDataPacket[]>(
+  const [totals] = await pool.query<TotalsRow[]>(
     `SELECT COUNT(*) AS listings,
             COALESCE(SUM(status = 'active'), 0) AS live,
             COALESCE(SUM(status = 'draft'), 0) AS drafts,
@@ -35,7 +85,7 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id]
   );
 
-  const [activity] = await pool.query<RowDataPacket[]>(
+  const [activity] = await pool.query<ActivityRow[]>(
     `SELECT
        (SELECT COUNT(*) FROM conversations WHERE owner_id = ?) AS inquiries,
        (SELECT COUNT(*) FROM applications a JOIN listings l ON l.id = a.listing_id
@@ -50,7 +100,7 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id, id, id, id, id, id]
   );
 
-  const [listings] = await pool.query<RowDataPacket[]>(
+  const [listings] = await pool.query<ListingRow[]>(
     `SELECT l.id, l.title, l.status, l.view_count,
        (SELECT COUNT(*) FROM conversations c WHERE c.listing_id = l.id) AS inquiries,
        (SELECT COUNT(*) FROM applications a WHERE a.listing_id = l.id) AS applicants,
@@ -62,7 +112,7 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id]
   );
 
-  const [inquiries] = await pool.query<RowDataPacket[]>(
+  const [inquiries] = await pool.query<InquiryRow[]>(
     `SELECT c.id, c.created_at, l.title, t.full_name AS tenant_name
      FROM conversations c
      JOIN listings l ON l.id = c.listing_id
@@ -73,7 +123,7 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id]
   );
 
-  const [applicants] = await pool.query<RowDataPacket[]>(
+  const [applicants] = await pool.query<ApplicantRow[]>(
     `SELECT a.id, a.status, a.created_at, l.title, u.full_name AS tenant_name
      FROM applications a
      JOIN listings l ON l.id = a.listing_id
@@ -84,7 +134,7 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id]
   );
 
-  const [viewings] = await pool.query<RowDataPacket[]>(
+  const [viewings] = await pool.query<ViewingRow[]>(
     `SELECT v.id, v.scheduled_at, v.status, l.id AS listing_id, l.title, u.full_name AS tenant_name
      FROM viewings v
      JOIN listings l ON l.id = v.listing_id
@@ -95,8 +145,20 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id]
   );
 
-  const t = totals[0];
-  const a = activity[0];
+  const t = totals[0] ?? {
+    listings: 0,
+    live: 0,
+    drafts: 0,
+    views: 0,
+  };
+  const a = activity[0] ?? {
+    inquiries: 0,
+    applicants: 0,
+    new_applicants: 0,
+    viewing_requests: 0,
+    upcoming_viewings: 0,
+    leases_to_sign: 0,
+  };
 
   res.json({
     totals: {

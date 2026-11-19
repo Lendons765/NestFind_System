@@ -88,7 +88,7 @@ listingsRouter.get("/:id", async (req, res) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT l.id, l.title, l.description, loc.city, loc.barangay, l.property_type,
             l.monthly_rent, l.bedrooms, l.is_furnished, l.has_aircon, l.has_wifi,
-            l.has_parking, l.has_gym, l.house_rules, l.verification
+            l.has_parking, l.has_gym, l.house_rules, l.verification, l.view_count
      FROM listings l
      JOIN locations loc ON loc.id = l.location_id
      WHERE l.id = ? AND l.status = 'active'`,

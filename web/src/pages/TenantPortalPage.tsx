@@ -17,7 +17,7 @@ import type {
   MyApplication,
   TenantConversation,
   TenantViewing,
-} from "../types";
+} from "../type";
 
 type Tab = "overview" | "messages" | "viewings" | "movein";
 

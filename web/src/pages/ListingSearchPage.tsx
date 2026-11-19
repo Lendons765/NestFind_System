@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { searchListings } from "../api/listings";
-import type { ListingSummary, SearchFilters } from "../types";
+import type { ListingSummary, SearchFilters } from "../type";
 
 
 const API_BASE = "http://localhost:4000";
@@ -145,10 +145,10 @@ export default function ListingSearchPage() {
   }
 
   function toggleAmenity(value: string) {
-    setDraft((prev) => ({
+    setDraft((prev: SearchFilters) => ({
       ...prev,
       amenities: prev.amenities.includes(value)
-        ? prev.amenities.filter((a) => a !== value)
+        ? prev.amenities.filter((a: string) => a !== value)
         : [...prev.amenities, value],
     }));
   }

@@ -6,7 +6,7 @@ import type {
   MyApplication,
 } from "../type";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 async function call<T>(token: string, path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

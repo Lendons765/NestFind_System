@@ -1,6 +1,6 @@
 import type { OwnerDashboard, PublicStats, UserDashboard } from "../type";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
 async function get<T>(path: string, token?: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

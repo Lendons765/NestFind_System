@@ -15,24 +15,39 @@ const emptyForm: FormState = { name: "", email: "", phone: "", message: "", pref
 
 export default function InquiryForm({ listingId }: { listingId: string }) {
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const mutation = useMutation({
     mutationFn: () =>
       sendInquiry(listingId, {
-        name: form.name,
-        email: form.email,
-        phone: form.phone || undefined,
-        message: form.message,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim() || undefined,
+        message: form.message.trim(),
         preferredAt: form.preferredAt || undefined,
       }),
   });
 
   function update(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
+    // Clear the message for a field as soon as the user starts fixing it.
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
+  }
+
+  function validate() {
+    const next: Record<string, string> = {};
+    if (!form.name.trim()) next.name = "Please enter your name.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      next.email = "Please enter a valid email, such as name@example.com.";
+    }
+    if (!form.message.trim()) next.message = "Please write a message for the owner.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!validate()) return;
     mutation.mutate();
   }
 
@@ -50,45 +65,45 @@ export default function InquiryForm({ listingId }: { listingId: string }) {
   }
 
   return (
-    <form className="inquiry-form" onSubmit={handleSubmit}>
+    <form className="inquiry-form" onSubmit={handleSubmit} noValidate>
       <h2>Send an inquiry</h2>
 
       <label>
         Name
         <input
-          required
           value={form.name}
+          aria-invalid={!!errors.name}
           onChange={(e) => update("name", e.target.value)}
         />
+        {errors.name && <span className="field-error">{errors.name}</span>}
       </label>
 
       <label>
         Email
         <input
           type="email"
-          required
           value={form.email}
+          aria-invalid={!!errors.email}
           onChange={(e) => update("email", e.target.value)}
         />
+        {errors.email && <span className="field-error">{errors.email}</span>}
       </label>
 
       <label>
         Phone (optional)
-        <input
-          value={form.phone}
-          onChange={(e) => update("phone", e.target.value)}
-        />
+        <input value={form.phone} onChange={(e) => update("phone", e.target.value)} />
       </label>
 
       <label>
         Message
         <textarea
-          required
           rows={4}
           maxLength={2000}
           value={form.message}
+          aria-invalid={!!errors.message}
           onChange={(e) => update("message", e.target.value)}
         />
+        {errors.message && <span className="field-error">{errors.message}</span>}
       </label>
 
       <label>

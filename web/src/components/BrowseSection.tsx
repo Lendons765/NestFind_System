@@ -4,8 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { searchListings } from "../api/listings";
 import type { ListingSummary, SearchFilters } from "../type";
-
-const API_BASE = "http://localhost:4000";
+import { API_BASE } from "../config";
 
 const propertyTypes = [
   { value: "", label: "Any type" },

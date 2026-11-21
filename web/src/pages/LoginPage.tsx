@@ -7,6 +7,9 @@ import Logo from "../components/Logo";
 type Mode = "login" | "register";
 type Role = "tenant" | "owner";
 
+const ACCOUNT_CREATED =
+  "Account created. Please log in with your email and password.";
+
 export default function LoginPage() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
@@ -32,6 +35,19 @@ export default function LoginPage() {
     setSearchParams(next === "register" ? { mode: "register" } : {});
   }
 
+  // Typing clears the message, so old notices don't linger.
+  function changeEmail(value: string) {
+    setEmail(value);
+    setNotice(null);
+    setError(null);
+  }
+
+  function changePassword(value: string) {
+    setPassword(value);
+    setNotice(null);
+    setError(null);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -47,17 +63,26 @@ export default function LoginPage() {
       if (!isRegister) {
         await login(email, password);
         navigate("/");
-      } else {
-        const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-        const outcome = await register({ fullName, email, password, role });
-        if (outcome === "signed_in") {
-          navigate("/");
-        } else {
-          setNotice(
-            "We sent a confirmation link to this email. Open it to finish setting up your account."
-          );
-        }
+        return;
       }
+
+      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+      const outcome = await register({ fullName, email, password, role });
+
+      if (outcome === "signed_in") {
+        navigate("/");
+        return;
+      }
+
+      // Account created (or confirmation sent): go back to the login form with a message.
+      setPassword("");
+      setAgreed(false);
+      setSearchParams({});
+      setNotice(
+        outcome === "verification_sent"
+          ? "We sent a confirmation link to this email. Open it to finish setting up your account."
+          : ACCOUNT_CREATED
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -151,7 +176,7 @@ export default function LoginPage() {
               placeholder="Email"
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => changeEmail(e.target.value)}
             />
 
             <div className="auth-password">
@@ -162,7 +187,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 autoComplete={isRegister ? "new-password" : "current-password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => changePassword(e.target.value)}
               />
               <button
                 type="button"

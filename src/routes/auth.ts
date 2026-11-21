@@ -35,7 +35,7 @@ async function createClaimToken(
 }
 
 // POST /api/auth/register
-// New emails create an account right away.
+// New emails create an account and return a message. The user then logs in on the login page.
 // An email that belongs to an inquiry account (no password yet) is not taken over
 // immediately: a confirmation link is sent to that address first.
 authRouter.post("/register", async (req, res) => {
@@ -91,8 +91,11 @@ authRouter.post("/register", async (req, res) => {
     [id, role, fullName, email, passwordHash]
   );
 
-  const token = signToken({ id, role });
-  return res.status(201).json({ token, user: { id, role, fullName, email } });
+  // No token here: the user logs in on the login page after creating the account.
+  return res.status(201).json({
+    status: "registered",
+    message: "Account created. Please log in with your email and password.",
+  });
 });
 
 // GET /api/auth/verify?token=...

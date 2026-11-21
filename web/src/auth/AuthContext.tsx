@@ -12,7 +12,9 @@ interface RegisterInput {
   role: Role;
 }
 
-type RegisterOutcome = "signed_in" | "verification_sent";
+// "registered": account created, user goes to the login form.
+// "verification_sent": an existing inquiry account needs an email confirmation.
+type RegisterOutcome = "signed_in" | "registered" | "verification_sent";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -68,11 +70,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function register(input: RegisterInput): Promise<RegisterOutcome> {
     const data = await apiRegister(input);
+
+    // Older responses included a session. Keep this so nothing breaks if it returns.
     if ("token" in data) {
       saveSession(data.token, data.user);
       return "signed_in";
     }
-    return "verification_sent";
+
+    if (data.status === "verification_sent") return "verification_sent";
+    return "registered";
   }
 
   function logout() {

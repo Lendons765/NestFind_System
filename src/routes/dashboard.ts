@@ -1,72 +1,23 @@
 import { Router } from "express";
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket } from "../db.js";
 import { pool } from "../db.js";
 import { requireAuth, requireRole } from "../auth.js";
 
 export const dashboardRouter = Router();
 
+// Converts a count or sum to a plain number. PostgreSQL returns some aggregates as text.
 const n = (v: unknown) => Number(v ?? 0);
-
-interface ListingRow extends RowDataPacket {
-  id: number;
-  title: string;
-  status: string;
-  view_count: number;
-  inquiries: number;
-  applicants: number;
-  viewings: number;
-}
-
-interface InquiryRow extends RowDataPacket {
-  id: number;
-  created_at: string;
-  title: string;
-  tenant_name: string;
-}
-
-interface ApplicantRow extends RowDataPacket {
-  id: number;
-  status: string;
-  created_at: string;
-  title: string;
-  tenant_name: string;
-}
-
-interface ViewingRow extends RowDataPacket {
-  id: number;
-  scheduled_at: string;
-  status: string;
-  listing_id: number;
-  title: string;
-  tenant_name: string;
-}
-
-interface TotalsRow extends RowDataPacket {
-  listings: number;
-  live: number;
-  drafts: number;
-  views: number;
-}
-
-interface ActivityRow extends RowDataPacket {
-  inquiries: number;
-  applicants: number;
-  new_applicants: number;
-  viewing_requests: number;
-  upcoming_viewings: number;
-  leases_to_sign: number;
-}
 
 // GET /api/dashboard/public
 // Homepage numbers only. No personal data.
 dashboardRouter.get("/public", async (_req, res) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT
-       (SELECT COUNT(*) FROM listings WHERE status = 'active') AS live_listings,
-       (SELECT COUNT(DISTINCT loc.barangay) FROM listings l
+       (SELECT COUNT(*)::int FROM listings WHERE status = 'active') AS live_listings,
+       (SELECT COUNT(DISTINCT loc.barangay)::int FROM listings l
           JOIN locations loc ON loc.id = l.location_id WHERE l.status = 'active') AS barangays,
-       (SELECT COUNT(*) FROM users WHERE role = 'owner') AS owners,
-       (SELECT COUNT(*) FROM users WHERE role = 'tenant') AS tenants`
+       (SELECT COUNT(*)::int FROM users WHERE role = 'owner') AS owners,
+       (SELECT COUNT(*)::int FROM users WHERE role = 'tenant') AS tenants`
   );
   res.json(rows[0]);
 });
@@ -76,35 +27,36 @@ dashboardRouter.get("/public", async (_req, res) => {
 dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res) => {
   const id = req.user!.id;
 
-  const [totals] = await pool.query<TotalsRow[]>(
-    `SELECT COUNT(*) AS listings,
-            COALESCE(SUM(status = 'active'), 0) AS live,
-            COALESCE(SUM(status = 'draft'), 0) AS drafts,
-            COALESCE(SUM(view_count), 0) AS views
+  const [totals] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       COUNT(*)::int AS listings,
+       (COUNT(*) FILTER (WHERE status = 'active'))::int AS live,
+       (COUNT(*) FILTER (WHERE status = 'draft'))::int AS drafts,
+       COALESCE(SUM(view_count), 0)::int AS views
      FROM listings WHERE owner_id = ?`,
     [id]
   );
 
-  const [activity] = await pool.query<ActivityRow[]>(
+  const [activity] = await pool.query<RowDataPacket[]>(
     `SELECT
-       (SELECT COUNT(*) FROM conversations WHERE owner_id = ?) AS inquiries,
-       (SELECT COUNT(*) FROM applications a JOIN listings l ON l.id = a.listing_id
+       (SELECT COUNT(*)::int FROM conversations WHERE owner_id = ?) AS inquiries,
+       (SELECT COUNT(*)::int FROM applications a JOIN listings l ON l.id = a.listing_id
           WHERE l.owner_id = ?) AS applicants,
-       (SELECT COUNT(*) FROM applications a JOIN listings l ON l.id = a.listing_id
+       (SELECT COUNT(*)::int FROM applications a JOIN listings l ON l.id = a.listing_id
           WHERE l.owner_id = ? AND a.status = 'submitted') AS new_applicants,
-       (SELECT COUNT(*) FROM viewings v JOIN listings l ON l.id = v.listing_id
+       (SELECT COUNT(*)::int FROM viewings v JOIN listings l ON l.id = v.listing_id
           WHERE l.owner_id = ? AND v.status = 'requested') AS viewing_requests,
-       (SELECT COUNT(*) FROM viewings v JOIN listings l ON l.id = v.listing_id
+       (SELECT COUNT(*)::int FROM viewings v JOIN listings l ON l.id = v.listing_id
           WHERE l.owner_id = ? AND v.status = 'confirmed' AND v.scheduled_at > NOW()) AS upcoming_viewings,
-       (SELECT COUNT(*) FROM leases WHERE owner_id = ? AND status IN ('sent', 'signed_by_tenant')) AS leases_to_sign`,
+       (SELECT COUNT(*)::int FROM leases WHERE owner_id = ? AND status IN ('sent', 'signed_by_tenant')) AS leases_to_sign`,
     [id, id, id, id, id, id]
   );
 
-  const [listings] = await pool.query<ListingRow[]>(
+  const [listings] = await pool.query<RowDataPacket[]>(
     `SELECT l.id, l.title, l.status, l.view_count,
-       (SELECT COUNT(*) FROM conversations c WHERE c.listing_id = l.id) AS inquiries,
-       (SELECT COUNT(*) FROM applications a WHERE a.listing_id = l.id) AS applicants,
-       (SELECT COUNT(*) FROM viewings v WHERE v.listing_id = l.id
+       (SELECT COUNT(*)::int FROM conversations c WHERE c.listing_id = l.id) AS inquiries,
+       (SELECT COUNT(*)::int FROM applications a WHERE a.listing_id = l.id) AS applicants,
+       (SELECT COUNT(*)::int FROM viewings v WHERE v.listing_id = l.id
           AND v.status IN ('requested', 'confirmed')) AS viewings
      FROM listings l
      WHERE l.owner_id = ?
@@ -112,7 +64,7 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id]
   );
 
-  const [inquiries] = await pool.query<InquiryRow[]>(
+  const [inquiries] = await pool.query<RowDataPacket[]>(
     `SELECT c.id, c.created_at, l.title, t.full_name AS tenant_name
      FROM conversations c
      JOIN listings l ON l.id = c.listing_id
@@ -123,7 +75,7 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id]
   );
 
-  const [applicants] = await pool.query<ApplicantRow[]>(
+  const [applicants] = await pool.query<RowDataPacket[]>(
     `SELECT a.id, a.status, a.created_at, l.title, u.full_name AS tenant_name
      FROM applications a
      JOIN listings l ON l.id = a.listing_id
@@ -134,7 +86,7 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id]
   );
 
-  const [viewings] = await pool.query<ViewingRow[]>(
+  const [viewings] = await pool.query<RowDataPacket[]>(
     `SELECT v.id, v.scheduled_at, v.status, l.id AS listing_id, l.title, u.full_name AS tenant_name
      FROM viewings v
      JOIN listings l ON l.id = v.listing_id
@@ -145,20 +97,8 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     [id]
   );
 
-  const t = totals[0] ?? {
-    listings: 0,
-    live: 0,
-    drafts: 0,
-    views: 0,
-  };
-  const a = activity[0] ?? {
-    inquiries: 0,
-    applicants: 0,
-    new_applicants: 0,
-    viewing_requests: 0,
-    upcoming_viewings: 0,
-    leases_to_sign: 0,
-  };
+  const t = totals[0] ?? {};
+  const a = activity[0] ?? {};
 
   res.json({
     totals: {

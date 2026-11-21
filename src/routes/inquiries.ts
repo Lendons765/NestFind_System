@@ -52,10 +52,10 @@ inquiriesRouter.post("/", async (req, res) => {
     // 2. Create the tenant, or update the existing user with this email.
     await conn.query(
       `INSERT INTO users (id, role, full_name, email, phone)
-       VALUES (UUID(), 'tenant', ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         full_name = VALUES(full_name),
-         phone = COALESCE(VALUES(phone), phone)`,
+       VALUES (gen_random_uuid(), 'tenant', ?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET
+         full_name = EXCLUDED.full_name,
+         phone = COALESCE(EXCLUDED.phone, users.phone)`,
       [name, email, phone]
     );
     const [userRows] = await conn.query<any[]>(
@@ -71,7 +71,9 @@ inquiriesRouter.post("/", async (req, res) => {
 
     // 3. One conversation per listing and tenant.
     await conn.query(
-      "INSERT IGNORE INTO conversations (id, listing_id, tenant_id, owner_id) VALUES (UUID(), ?, ?, ?)",
+      `INSERT INTO conversations (id, listing_id, tenant_id, owner_id)
+       VALUES (gen_random_uuid(), ?, ?, ?)
+       ON CONFLICT (listing_id, tenant_id) DO NOTHING`,
       [id, tenantId, ownerId]
     );
     const [convRows] = await conn.query<any[]>(
@@ -82,7 +84,7 @@ inquiriesRouter.post("/", async (req, res) => {
 
     // 4. Store the message.
     await conn.query(
-      "INSERT INTO messages (id, conversation_id, sender_id, body) VALUES (UUID(), ?, ?, ?)",
+      "INSERT INTO messages (id, conversation_id, sender_id, body) VALUES (gen_random_uuid(), ?, ?, ?)",
       [conversationId, tenantId, message]
     );
 
@@ -90,7 +92,7 @@ inquiriesRouter.post("/", async (req, res) => {
     if (preferredAt) {
       await conn.query(
         `INSERT INTO viewings (id, listing_id, tenant_id, scheduled_at, status, notes)
-         VALUES (UUID(), ?, ?, ?, 'requested', ?)`,
+         VALUES (gen_random_uuid(), ?, ?, ?, 'requested', ?)`,
         [id, tenantId, preferredAt, message]
       );
     }

@@ -13,6 +13,7 @@ import { listingMediaRouter } from "./routes/listingMedia.js";
 import { leasingRouter } from "./routes/leasing.js";
 import { tenantRouter } from "./routes/tenant.js";
 import { dashboardRouter } from "./routes/dashboard.js";
+import { tenantExtrasRouter } from "./routes/tenantExtras.js";
 
 const app = express();
 app.use(cors({
@@ -35,6 +36,8 @@ app.use("/api/owner/listings", listingEditingRouter);
 app.use("/api/listings", listingMediaRouter);
 app.use("/api/tenant", tenantRouter);
 app.use("/api/dashboard", dashboardRouter);
+app.use("/api/tenant", tenantExtrasRouter);
+app.use("/api/tenant", tenantRouter);
 const port = Number(process.env.PORT) || 4000;
 
 app.listen(port, "0.0.0.0", () => {

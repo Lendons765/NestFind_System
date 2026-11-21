@@ -1,25 +1,28 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket } from "../db.js";
 import { pool } from "../db.js";
 import { requireAuth, requireRole } from "../auth.js";
 
 export const tenantRouter = Router();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Every route here needs a logged-in tenant.
 tenantRouter.use(requireAuth, requireRole("tenant"));
 
 // GET /api/tenant/summary
+// COUNT() returns text in PostgreSQL, so each count is cast to int.
 tenantRouter.get("/summary", async (req, res) => {
   const id = req.user!.id;
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT
-       (SELECT COUNT(*) FROM applications WHERE tenant_id = ?) AS applications,
-       (SELECT COUNT(*) FROM applications WHERE tenant_id = ? AND status IN ('submitted', 'under_review')) AS pending_applications,
-       (SELECT COUNT(*) FROM viewings WHERE tenant_id = ? AND status = 'requested') AS viewings_requested,
-       (SELECT COUNT(*) FROM viewings WHERE tenant_id = ? AND status = 'confirmed') AS viewings_confirmed,
-       (SELECT COUNT(*) FROM conversations WHERE tenant_id = ?) AS conversations,
-       (SELECT COUNT(*) FROM leases WHERE tenant_id = ? AND status <> 'cancelled') AS leases`,
+       (SELECT COUNT(*)::int FROM applications WHERE tenant_id = ?) AS applications,
+       (SELECT COUNT(*)::int FROM applications WHERE tenant_id = ? AND status IN ('submitted', 'under_review')) AS pending_applications,
+       (SELECT COUNT(*)::int FROM viewings WHERE tenant_id = ? AND status = 'requested') AS viewings_requested,
+       (SELECT COUNT(*)::int FROM viewings WHERE tenant_id = ? AND status = 'confirmed') AS viewings_confirmed,
+       (SELECT COUNT(*)::int FROM conversations WHERE tenant_id = ?) AS conversations,
+       (SELECT COUNT(*)::int FROM leases WHERE tenant_id = ? AND status <> 'cancelled') AS leases`,
     [id, id, id, id, id, id]
   );
   return res.json(rows[0]);
@@ -76,6 +79,8 @@ tenantRouter.get("/conversations", async (req, res) => {
 // Body: { body }. The tenant can only write in their own conversations.
 tenantRouter.post("/conversations/:id/messages", async (req, res) => {
   const conversationId = String(req.params.id ?? "");
+  if (!UUID_RE.test(conversationId)) return res.status(404).json({ error: "Conversation not found." });
+
   const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
   if (!body || body.length > 2000) {
     return res.status(400).json({ error: "Write a message (up to 2000 characters)." });
@@ -114,6 +119,8 @@ tenantRouter.get("/viewings", async (req, res) => {
 // Body: { scheduledAt, notes? }. Books a viewing and opens a conversation with the owner.
 tenantRouter.post("/listings/:listingId/viewings", async (req, res) => {
   const listingId = String(req.params.listingId ?? "");
+  if (!UUID_RE.test(listingId)) return res.status(404).json({ error: "This listing isn't available to book." });
+
   const scheduledAt = typeof req.body?.scheduledAt === "string" ? new Date(req.body.scheduledAt) : null;
   const notes =
     typeof req.body?.notes === "string" && req.body.notes.trim() ? req.body.notes.trim().slice(0, 1000) : null;
@@ -129,9 +136,6 @@ tenantRouter.post("/listings/:listingId/viewings", async (req, res) => {
     "SELECT id, owner_id FROM listings WHERE id = ? AND status = 'active'",
     [listingId]
   );
-  if (listings.length === 0) {
-    return res.status(404).json({ error: "This listing isn't available to book." });
-  }
   const listing = listings[0];
   if (!listing) {
     return res.status(404).json({ error: "This listing isn't available to book." });
@@ -148,8 +152,11 @@ tenantRouter.post("/listings/:listingId/viewings", async (req, res) => {
   }
 
   // Makes sure the owner's inbox shows this booking, even without a prior inquiry.
+  // The unique (listing_id, tenant_id) constraint makes this a no-op when the conversation exists.
   await pool.query(
-    "INSERT IGNORE INTO conversations (id, listing_id, tenant_id, owner_id) VALUES (?, ?, ?, ?)",
+    `INSERT INTO conversations (id, listing_id, tenant_id, owner_id)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT (listing_id, tenant_id) DO NOTHING`,
     [randomUUID(), listing.id, req.user!.id, listing.owner_id]
   );
 
@@ -165,6 +172,8 @@ tenantRouter.post("/listings/:listingId/viewings", async (req, res) => {
 // PATCH /api/tenant/viewings/:id/cancel
 tenantRouter.patch("/viewings/:id/cancel", async (req, res) => {
   const viewingId = String(req.params.id ?? "");
+  if (!UUID_RE.test(viewingId)) return res.status(404).json({ error: "Viewing not found." });
+
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT id, status FROM viewings WHERE id = ? AND tenant_id = ?",
     [viewingId, req.user!.id]

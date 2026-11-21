@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import type { ResultSetHeader, RowDataPacket } from "mysql2";
+import type { ResultSetHeader, RowDataPacket } from "../db.js";
 import { pool } from "../db.js";
 import { requireAuth, signToken } from "../auth.js";
 import { sendEmail } from "../mailer.js";
@@ -62,11 +62,8 @@ authRouter.post("/register", async (req, res) => {
     [email]
   );
 
-  if (existing.length > 0) {
-    const account = existing[0];
-    if (!account) {
-      return res.status(409).json({ error: "An account with this email already exists." });
-    }
+  const account = existing[0];
+  if (account) {
     if (account.password_hash === null && account.role === "tenant") {
       const passwordHash = await bcrypt.hash(password, 12);
       const token = await createClaimToken(account.id, { fullName, passwordHash });
@@ -133,11 +130,9 @@ authRouter.get("/verify", async (req, res) => {
     [row.user_id]
   );
   const user = users[0];
-  if (!user) {
-    return invalid();
-  }
-  const sessionToken = signToken({ id: user.id, role: user.role });
+  if (!user) return invalid();
 
+  const sessionToken = signToken({ id: user.id, role: user.role });
   return res.json({
     token: sessionToken,
     user: {
@@ -162,7 +157,7 @@ authRouter.post("/login", async (req, res) => {
   const user = rows[0];
 
   // Same message for "no account" and "wrong password", so emails can't be guessed.
-  const valid = user && user.password_hash && (await bcrypt.compare(password, user.password_hash));
+  const valid = user?.password_hash && (await bcrypt.compare(password, user.password_hash));
   if (!user || !valid) {
     return res.status(401).json({ error: "Email or password is incorrect." });
   }
@@ -180,9 +175,6 @@ authRouter.get("/me", requireAuth, async (req, res) => {
     "SELECT id, role, full_name, email FROM users WHERE id = ?",
     [req.user!.id]
   );
-  if (rows.length === 0) {
-    return res.status(404).json({ error: "Account not found." });
-  }
   const user = rows[0];
   if (!user) {
     return res.status(404).json({ error: "Account not found." });

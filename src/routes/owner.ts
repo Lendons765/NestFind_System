@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket } from "../db.js";
 import { pool } from "../db.js";
 import { requireAuth, requireRole } from "../auth.js";
 
@@ -102,15 +102,16 @@ ownerRouter.patch("/viewings/:id", async (req, res) => {
 
 // GET /api/owner/listings
 // All of this owner's listings, with views, inquiries, and applicants.
+// Counts are cast to int, because PostgreSQL returns COUNT() as text.
 ownerRouter.get("/listings", async (req, res) => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT l.id, l.title, l.monthly_rent, l.status, l.verification, l.rejection_reason,
             l.published_at, l.view_count, loc.barangay,
-            (SELECT COUNT(*) FROM listing_media m
+            (SELECT COUNT(*)::int FROM listing_media m
                WHERE m.listing_id = l.id AND m.media_type = 'photo') AS photo_count,
-            (SELECT COUNT(*) FROM conversations c WHERE c.listing_id = l.id) AS inquiry_count,
-            (SELECT COUNT(*) FROM applications a WHERE a.listing_id = l.id) AS applicant_count,
-            (SELECT COUNT(*) FROM applications a
+            (SELECT COUNT(*)::int FROM conversations c WHERE c.listing_id = l.id) AS inquiry_count,
+            (SELECT COUNT(*)::int FROM applications a WHERE a.listing_id = l.id) AS applicant_count,
+            (SELECT COUNT(*)::int FROM applications a
                WHERE a.listing_id = l.id AND a.status = 'submitted') AS new_applicant_count
      FROM listings l
      JOIN locations loc ON loc.id = l.location_id
@@ -138,7 +139,7 @@ ownerRouter.post("/listings/:id/submit", async (req, res) => {
   }
 
   await pool.query(
-    "UPDATE listings SET status = 'active', published_at = NOW(3) WHERE id = ?",
+    "UPDATE listings SET status = 'active', published_at = NOW() WHERE id = ?",
     [listingId]
   );
   return res.json({ id: listingId, status: "active" });

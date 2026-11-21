@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket } from "../db.js";
 import { pool } from "../db.js";
 import { requireAuth, requireRole } from "../auth.js";
 
 export const listingsRouter = Router();
 
 const PROPERTY_TYPES = ["boarding_house", "studio", "apartment", "condo", "house", "other"];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Maps are used instead of plain objects so a query like "constructor" can't match.
 const AMENITY_COLUMNS = new Map<string, string>([
@@ -16,10 +17,11 @@ const AMENITY_COLUMNS = new Map<string, string>([
   ["parking", "l.has_parking"],
 ]);
 
+// NULLS LAST keeps unpublished listings at the end, matching MySQL's default.
 const SORT_ORDERS = new Map<string, string>([
   ["rent_asc", "l.monthly_rent ASC"],
   ["rent_desc", "l.monthly_rent DESC"],
-  ["newest", "l.published_at DESC"],
+  ["newest", "l.published_at DESC NULLS LAST"],
   ["featured", "l.is_featured DESC, l.monthly_rent ASC"],
 ]);
 
@@ -42,7 +44,7 @@ listingsRouter.get("/", async (req, res) => {
 
   // Free-text search from the homepage: matches city, barangay, or title.
   if (typeof q === "string" && q.trim()) {
-    sql += " AND (loc.city LIKE ? OR loc.barangay LIKE ? OR l.title LIKE ?)";
+    sql += " AND (loc.city ILIKE ? OR loc.barangay ILIKE ? OR l.title ILIKE ?)";
     const like = `%${q.trim()}%`;
     params.push(like, like, like);
   }
@@ -85,6 +87,8 @@ listingsRouter.get("/", async (req, res) => {
 // GET /api/listings/:id (the address is never returned here)
 listingsRouter.get("/:id", async (req, res) => {
   const listingId = String(req.params.id ?? "");
+  if (!UUID_RE.test(listingId)) return res.status(404).json({ error: "Not found" });
+
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT l.id, l.title, l.description, loc.city, loc.barangay, l.property_type,
             l.monthly_rent, l.bedrooms, l.is_furnished, l.has_aircon, l.has_wifi,
@@ -110,16 +114,13 @@ listingsRouter.get("/:id", async (req, res) => {
 // Visible to the listing's owner, and to a tenant with a confirmed viewing.
 listingsRouter.get("/:id/address", requireAuth, async (req, res) => {
   const listingId = String(req.params.id ?? "");
+  if (!UUID_RE.test(listingId)) return res.status(404).json({ error: "Listing not found." });
   const userId = req.user!.id;
 
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT owner_id, address_line FROM listings WHERE id = ?",
     [listingId]
   );
-  if (rows.length === 0) {
-    return res.status(404).json({ error: "Listing not found." });
-  }
-
   const listing = rows[0];
   if (!listing) {
     return res.status(404).json({ error: "Listing not found." });

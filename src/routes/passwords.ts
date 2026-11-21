@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import type { ResultSetHeader, RowDataPacket } from "mysql2";
+import type { ResultSetHeader, RowDataPacket } from "../db.js";
 import { pool } from "../db.js";
 import { sendEmail } from "../mailer.js";
 

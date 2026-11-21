@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket } from "../db.js";
 import { pool } from "../db.js";
 import { requireAuth, requireRole } from "../auth.js";
 
 export const leasingRouter = Router();
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_AMOUNT = 10_000_000;
 const APPLICANT_STATUSES = ["under_review", "approved", "rejected"];
 
@@ -27,12 +28,14 @@ async function leaseExistsFor(applicationId: string) {
     "SELECT id FROM leases WHERE application_id = ?",
     [applicationId]
   );
-  return rows.length > 0;
+  return rows[0] !== undefined;
 }
 
 // POST /api/listings/:listingId/applications (tenant)
 leasingRouter.post("/listings/:listingId/applications", requireAuth, requireRole("tenant"), async (req, res) => {
   const listingId = String(req.params.listingId ?? "");
+  if (!UUID_RE.test(listingId)) return res.status(404).json({ error: "This listing isn't accepting applications." });
+
   const body = req.body ?? {};
   const desiredMoveIn = typeof body.desiredMoveIn === "string" && body.desiredMoveIn ? body.desiredMoveIn : null;
   const term =
@@ -49,7 +52,7 @@ leasingRouter.post("/listings/:listingId/applications", requireAuth, requireRole
     "SELECT id FROM listings WHERE id = ? AND status = 'active'",
     [listingId]
   );
-  if (listings.length === 0) {
+  if (!listings[0]) {
     return res.status(404).json({ error: "This listing isn't accepting applications." });
   }
 
@@ -57,7 +60,7 @@ leasingRouter.post("/listings/:listingId/applications", requireAuth, requireRole
     "SELECT id FROM applications WHERE listing_id = ? AND tenant_id = ?",
     [listingId, req.user!.id]
   );
-  if (existing.length > 0) {
+  if (existing[0]) {
     return res.status(409).json({ error: "You have already applied for this listing." });
   }
 
@@ -89,11 +92,13 @@ leasingRouter.get("/applications/mine", requireAuth, requireRole("tenant"), asyn
 // GET /api/listings/:listingId/applications (owner of that listing)
 leasingRouter.get("/listings/:listingId/applications", requireAuth, requireRole("owner"), async (req, res) => {
   const listingId = String(req.params.listingId ?? "");
+  if (!UUID_RE.test(listingId)) return res.status(404).json({ error: "Listing not found." });
+
   const [owned] = await pool.query<RowDataPacket[]>(
     "SELECT id FROM listings WHERE id = ? AND owner_id = ?",
     [listingId, req.user!.id]
   );
-  if (owned.length === 0) return res.status(404).json({ error: "Listing not found." });
+  if (!owned[0]) return res.status(404).json({ error: "Listing not found." });
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT a.id, a.status, a.desired_move_in, a.lease_term_months, a.created_at,
@@ -115,6 +120,7 @@ leasingRouter.patch("/applications/:id/status", requireAuth, requireRole("owner"
   if (!APPLICANT_STATUSES.includes(status)) {
     return res.status(400).json({ error: "Status must be under_review, approved, or rejected." });
   }
+  if (!UUID_RE.test(applicationId)) return res.status(404).json({ error: "Application not found." });
 
   const app = await loadApplication(applicationId);
   if (!app || app.owner_id !== req.user!.id) {
@@ -131,6 +137,8 @@ leasingRouter.patch("/applications/:id/status", requireAuth, requireRole("owner"
 // POST /api/applications/:id/lease (owner, approved applicants only)
 leasingRouter.post("/applications/:id/lease", requireAuth, requireRole("owner"), async (req, res) => {
   const applicationId = String(req.params.id ?? "");
+  if (!UUID_RE.test(applicationId)) return res.status(404).json({ error: "Application not found." });
+
   const app = await loadApplication(applicationId);
   if (!app || app.owner_id !== req.user!.id) {
     return res.status(404).json({ error: "Application not found." });
@@ -200,6 +208,7 @@ leasingRouter.get("/leases/mine", requireAuth, async (req, res) => {
 leasingRouter.post("/leases/:id/sign", requireAuth, async (req, res) => {
   const userId = req.user!.id;
   const leaseId = String(req.params.id ?? "");
+  if (!UUID_RE.test(leaseId)) return res.status(404).json({ error: "Lease not found." });
   const typedName = typeof req.body?.typedName === "string" ? req.body.typedName.trim() : "";
 
   const [leases] = await pool.query<RowDataPacket[]>("SELECT * FROM leases WHERE id = ?", [leaseId]);
@@ -229,6 +238,7 @@ leasingRouter.post("/leases/:id/sign", requireAuth, async (req, res) => {
   }
 
   const now = new Date();
+  // signedField comes only from the fixed values above, never from user input.
   await pool.query(`UPDATE leases SET ${signedField} = ? WHERE id = ?`, [now, lease.id]);
 
   const tenantSigned = party === "tenant" ? now : lease.tenant_signed_at;

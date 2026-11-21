@@ -16,6 +16,7 @@ import NewListingPage from "./pages/NewListingPage";
 import ListingManagePage from "./pages/ListingManagePage";
 import LeasesPage from "./pages/LeasesPage";
 import TenantPortalPage from "./pages/TenantPortalPage";
+import Footer from "./components/Footer";
 
 
 const queryClient = new QueryClient();
@@ -43,7 +44,9 @@ export default function App() {
             <Route path="/my-listings/new" element={<NewListingPage />} />
             <Route path="/my-listings/:id/edit" element={<NewListingPage />} />
             <Route path="/my-listings/:id/manage" element={<ListingManagePage />} />
+            
           </Routes>
+          <Footer />
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

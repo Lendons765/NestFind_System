@@ -5,7 +5,7 @@ import path from "node:path";
 import { Router } from "express";
 import type { NextFunction, Request, Response } from "express";
 import multer from "multer";
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket } from "../db.js";
 import { pool } from "../db.js";
 import { requireAuth, requireRole } from "../auth.js";
 
@@ -91,7 +91,6 @@ function parseListing(body: any) {
 }
 
 // GET /api/owner/listings/:id
-// Full details for the edit page, including the address and photos.
 listingEditingRouter.get("/:id", async (req, res) => {
   const listingId = String(req.params.id ?? "");
   const listing = await ownListing(listingId, req.user!.id);
@@ -105,7 +104,7 @@ listingEditingRouter.get("/:id", async (req, res) => {
 });
 
 // PATCH /api/owner/listings/:id
-// Only drafts can change. Rejected listings return to draft, so they can be edited.
+// Only drafts can change.
 listingEditingRouter.patch("/:id", async (req, res) => {
   const listingId = String(req.params.id ?? "");
   const listing = await ownListing(listingId, req.user!.id);
@@ -121,7 +120,7 @@ listingEditingRouter.patch("/:id", async (req, res) => {
   const d = parsed.data;
 
   const [locations] = await pool.query<RowDataPacket[]>("SELECT id FROM locations WHERE id = ?", [d.locationId]);
-  if (locations.length === 0) return res.status(400).json({ error: "Location not found." });
+  if (!locations[0]) return res.status(400).json({ error: "Location not found." });
 
   await pool.query(
     `UPDATE listings SET title = ?, description = ?, property_type = ?, address_line = ?,
@@ -149,7 +148,7 @@ listingEditingRouter.patch("/:id", async (req, res) => {
 });
 
 // DELETE /api/owner/listings/:id
-// Only drafts can be deleted. Live and waiting listings are kept for records.
+// Only drafts can be deleted.
 listingEditingRouter.delete("/:id", async (req, res) => {
   const listingId = String(req.params.id ?? "");
   const listing = await ownListing(listingId, req.user!.id);
@@ -190,14 +189,10 @@ listingEditingRouter.post("/:id/photos", uploadOne, async (req, res) => {
   }
 
   const [countRows] = await pool.query<RowDataPacket[]>(
-    "SELECT COUNT(*) AS n FROM listing_media WHERE listing_id = ? AND media_type = 'photo'",
+    "SELECT COUNT(*)::int AS n FROM listing_media WHERE listing_id = ? AND media_type = 'photo'",
     [listing.id]
   );
-  const countRow = countRows[0];
-  if (!countRow) {
-    return res.status(500).json({ error: "Could not load photo count." });
-  }
-  const count = Number(countRow.n);
+  const count = Number(countRows[0]?.n ?? 0);
   if (count >= MAX_PHOTOS) {
     await discardFile();
     return res.status(409).json({ error: `A listing can have up to ${MAX_PHOTOS} photos.` });

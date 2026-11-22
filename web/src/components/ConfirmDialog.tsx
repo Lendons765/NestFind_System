@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 export default function ConfirmDialog({
   open,
@@ -15,7 +16,7 @@ export default function ConfirmDialog({
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  tone?: "default" | "danger";
+  tone?: "default" | "danger" | "success";
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -32,7 +33,10 @@ export default function ConfirmDialog({
 
   if (!open) return null;
 
-  return (
+  const icon = tone === "danger" ? "!" : tone === "success" ? "✓" : "?";
+
+  // Rendered into <body> so no parent card can clip or offset it.
+  return createPortal(
     <div className="dialog-backdrop" onClick={onCancel} role="presentation">
       <div
         className="dialog-card"
@@ -43,7 +47,7 @@ export default function ConfirmDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className={`dialog-icon ${tone}`} aria-hidden="true">
-          {tone === "danger" ? "!" : "?"}
+          {icon}
         </div>
         <h2 id="dialog-title">{title}</h2>
         <p id="dialog-message">{message}</p>
@@ -61,6 +65,7 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

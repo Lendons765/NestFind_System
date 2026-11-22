@@ -17,6 +17,7 @@ import ListingManagePage from "./pages/ListingManagePage";
 import LeasesPage from "./pages/LeasesPage";
 import TenantPortalPage from "./pages/TenantPortalPage";
 import Footer from "./components/Footer";
+import TenantProfilePage from "./pages/TenantProfilePage";
 
 
 const queryClient = new QueryClient();
@@ -31,7 +32,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/search" element={<ListingSearchPage />} />
             <Route path="/listings/:id" element={<ListingDetailPage />} />
-            
+            <Route path="/profile" element={<TenantProfilePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/verify" element={<VerifyPage />} />
             <Route path="/forgot" element={<ForgotPasswordPage />} />

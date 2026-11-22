@@ -50,14 +50,16 @@ export default function Header() {
           {user ? (
             <>
               {user.role === "tenant" && <Link to="/my-home">My home</Link>}
-              {user.role === "tenant" && <Link to="/saved">Saved</Link>}
+              
               {user.role === "owner" && <Link to="/my-listings">My listings</Link>}
               {user.role === "owner" && <Link to="/dashboard">Dashboard</Link>}
               {user.role === "owner" && <Link to="/inbox">Inbox</Link>}
               <Link to="/leases">Leases</Link>
-              <span className="nav-user">
+
+              <Link to="/profile" className="nav-user">
                 {user.fullName} ({user.role})
-              </span>
+              </Link>
+
               <button type="button" className="btn-outline" onClick={() => setConfirmOpen(true)}>
                 Log out
               </button>

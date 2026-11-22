@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { fetchMyApplications, fetchMyLeases, signLease } from "../api/leasing";
-import type { ApplicationStatus, LeaseRow, LeaseStatus } from "../type";
+import type { ApplicationStatus, LeaseRow, LeaseStatus } from "../types";
 
 const appLabel: Record<ApplicationStatus, string> = {
   submitted: "Submitted",
@@ -133,16 +133,9 @@ export default function LeasesPage() {
       </main>
     );
   }
-  if (user.role === "admin") {
-    return (
-      <main className="page">
-        <p>Admins review listings from the Review page.</p>
-      </main>
-    );
-  }
 
   return (
-    <main className="page">
+    <main className="page leases-page">
       <h1>Leases</h1>
 
       {user.role === "tenant" && (
@@ -155,25 +148,23 @@ export default function LeasesPage() {
               You haven't applied for any place yet. <Link to="/search">Browse listings</Link>.
             </p>
           )}
-          <div className="inbox">
-            {apps.data?.map((a) => (
-              <section key={a.id} className="inquiry-card">
-                <div className="owner-card-head">
-                  <div>
-                    <h3>{a.title}</h3>
-                    <p className="muted">
-                      {a.barangay} · Applied {formatDate(a.created_at)}
-                    </p>
-                  </div>
-                  <span className="pill pill-pending">{appLabel[a.status]}</span>
+          {apps.data?.map((a) => (
+            <section key={a.id} className="inquiry-card">
+              <div className="owner-card-head">
+                <div>
+                  <h3>{a.title}</h3>
+                  <p className="muted">
+                    {a.barangay} · Applied {formatDate(a.created_at)}
+                  </p>
                 </div>
-                <p className="muted">
-                  Move-in {formatDate(a.desired_move_in)} · Lease{" "}
-                  {a.lease_term_months ? `${a.lease_term_months} months` : "to be agreed"}
-                </p>
-              </section>
-            ))}
-          </div>
+                <span className="pill pill-pending">{appLabel[a.status]}</span>
+              </div>
+              <p className="muted">
+                Move-in {formatDate(a.desired_move_in)} · Lease{" "}
+                {a.lease_term_months ? `${a.lease_term_months} months` : "to be agreed"}
+              </p>
+            </section>
+          ))}
         </section>
       )}
 
@@ -183,7 +174,10 @@ export default function LeasesPage() {
         {leases.isError && <p className="error">{(leases.error as Error).message}</p>}
         {leases.data?.length === 0 && (
           <p>
-            No lease yet. {user.role === "owner" ? "Create one from Manage on your listing." : "Your owner will send one after approval."}
+            No lease yet.{" "}
+            {user.role === "owner"
+              ? "Create one from Manage on your listing."
+              : "Your owner will send one after approval."}
           </p>
         )}
         {leases.data?.map((lease) => (

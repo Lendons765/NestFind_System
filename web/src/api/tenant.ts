@@ -1,4 +1,4 @@
-import type { TenantConversation, TenantSummary, TenantViewing } from "../type";
+import type { TenantConversation, TenantSummary, TenantViewing } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
@@ -41,4 +41,24 @@ export const bookViewing = (token: string, listingId: string, scheduledAt: strin
   call<{ id: string; status: string }>(token, `/api/tenant/listings/${encodeURIComponent(listingId)}/viewings`, {
     method: "POST",
     body: JSON.stringify({ scheduledAt, notes }),
+  });
+
+export type TenantAccount = {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  createdAt: string;
+};
+
+export const fetchTenantAccount = (token: string) =>
+  call<TenantAccount>(token, "/api/tenant/account");
+
+export const updateTenantAccount = (
+  token: string,
+  input: { fullName: string; phone: string | null }
+) =>
+  call<{ saved: boolean }>(token, "/api/tenant/account", {
+    method: "PUT",
+    body: JSON.stringify(input),
   });

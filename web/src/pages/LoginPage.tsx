@@ -3,12 +3,10 @@ import type { FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import Logo from "../components/Logo";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 type Mode = "login" | "register";
 type Role = "tenant" | "owner";
-
-const ACCOUNT_CREATED =
-  "Account created. Please log in with your email and password.";
 
 export default function LoginPage() {
   const { login, register } = useAuth();
@@ -25,6 +23,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [createdOpen, setCreatedOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const isRegister = mode === "register";
@@ -35,23 +35,9 @@ export default function LoginPage() {
     setSearchParams(next === "register" ? { mode: "register" } : {});
   }
 
-  // Typing clears the message, so old notices don't linger.
-  function changeEmail(value: string) {
-    setEmail(value);
-    setNotice(null);
-    setError(null);
-  }
-
-  function changePassword(value: string) {
-    setPassword(value);
-    setNotice(null);
-    setError(null);
-  }
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setNotice(null);
 
     if (isRegister && !agreed) {
       setError("Please accept the Terms & Conditions to continue.");
@@ -61,8 +47,10 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       if (!isRegister) {
+        // The session is saved by login(). The dialog then confirms it before going home.
         await login(email, password);
-        navigate("/");
+        setPassword("");
+        setLoginOpen(true);
         return;
       }
 
@@ -74,16 +62,21 @@ export default function LoginPage() {
         return;
       }
 
-      // Account created (or confirmation sent): go back to the login form with a message.
+      // Account created: go back to the login form and show the success dialog.
       setPassword("");
       setAgreed(false);
       setSearchParams({});
-      setNotice(
-        outcome === "verification_sent"
-          ? "We sent a confirmation link to this email. Open it to finish setting up your account."
-          : ACCOUNT_CREATED
-      );
+
+      if (outcome === "verification_sent") {
+        setNotice(
+          "We sent a confirmation link to this email. Open it to finish setting up your account."
+        );
+      } else {
+        setCreatedOpen(true);
+      }
     } catch (err) {
+      // A failed attempt replaces any old message with the error.
+      setNotice(null);
       setError((err as Error).message);
     } finally {
       setSubmitting(false);
@@ -176,7 +169,7 @@ export default function LoginPage() {
               placeholder="Email"
               autoComplete="email"
               value={email}
-              onChange={(e) => changeEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
             />
 
             <div className="auth-password">
@@ -187,7 +180,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 autoComplete={isRegister ? "new-password" : "current-password"}
                 value={password}
-                onChange={(e) => changePassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
               />
               <button
                 type="button"
@@ -239,6 +232,31 @@ export default function LoginPage() {
           </div>
         </section>
       </div>
+
+      <ConfirmDialog
+        open={createdOpen}
+        title="Account created"
+        message="Your account is ready. Log in with your email and password."
+        confirmLabel="Log in"
+        cancelLabel="Close"
+        tone="success"
+        onConfirm={() => setCreatedOpen(false)}
+        onCancel={() => setCreatedOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={loginOpen}
+        title="Account login successful"
+        message="Welcome back. You're now logged in to NestFinds."
+        confirmLabel="Continue"
+        cancelLabel="Stay here"
+        tone="success"
+        onConfirm={() => {
+          setLoginOpen(false);
+          navigate("/");
+        }}
+        onCancel={() => setLoginOpen(false)}
+      />
     </main>
   );
 }

@@ -147,3 +147,45 @@ dashboardRouter.get("/owner", requireAuth, requireRole("owner"), async (req, res
     })),
   });
 });
+
+// GET /api/dashboard/owner/people
+// Tenants connected to this owner's listings, with a count of each kind of contact.
+dashboardRouter.get("/owner/people", requireAuth, requireRole("owner"), async (req, res) => {
+  const id = req.user!.id;
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT u.id, u.full_name, u.email, u.phone, u.created_at,
+       (SELECT COUNT(*)::int FROM conversations c
+          WHERE c.tenant_id = u.id AND c.owner_id = ?) AS inquiries,
+       (SELECT COUNT(*)::int FROM applications a JOIN listings l ON l.id = a.listing_id
+          WHERE a.tenant_id = u.id AND l.owner_id = ?) AS applications,
+       (SELECT COUNT(*)::int FROM viewings v JOIN listings l ON l.id = v.listing_id
+          WHERE v.tenant_id = u.id AND l.owner_id = ?) AS viewings,
+       (SELECT COUNT(*)::int FROM leases le
+          WHERE le.tenant_id = u.id AND le.owner_id = ?) AS leases
+     FROM users u
+     WHERE u.role = 'tenant' AND u.id IN (
+       SELECT c.tenant_id FROM conversations c WHERE c.owner_id = ?
+       UNION
+       SELECT a.tenant_id FROM applications a JOIN listings l ON l.id = a.listing_id WHERE l.owner_id = ?
+       UNION
+       SELECT v.tenant_id FROM viewings v JOIN listings l ON l.id = v.listing_id WHERE l.owner_id = ?
+     )
+     ORDER BY u.full_name`,
+    [id, id, id, id, id, id, id]
+  );
+
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      name: r.full_name,
+      email: r.email,
+      phone: r.phone,
+      joinedAt: r.created_at,
+      inquiries: Number(r.inquiries ?? 0),
+      applications: Number(r.applications ?? 0),
+      viewings: Number(r.viewings ?? 0),
+      leases: Number(r.leases ?? 0),
+    }))
+  );
+});

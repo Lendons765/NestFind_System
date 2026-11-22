@@ -148,13 +148,24 @@ listingEditingRouter.patch("/:id", async (req, res) => {
 });
 
 // DELETE /api/owner/listings/:id
-// Only drafts can be deleted.
+// Deletes any listing this owner owns. Blocked when a lease or payment is on record,
+// because those are kept as records. Inquiries, applications, viewings, and photos are removed with it.
 listingEditingRouter.delete("/:id", async (req, res) => {
   const listingId = String(req.params.id ?? "");
   const listing = await ownListing(listingId, req.user!.id);
   if (!listing) return res.status(404).json({ error: "Listing not found." });
-  if (listing.status !== "draft") {
-    return res.status(409).json({ error: "Only drafts can be deleted." });
+
+  const [records] = await pool.query<RowDataPacket[]>(
+    `SELECT
+       (SELECT COUNT(*)::int FROM leases WHERE listing_id = ?) AS leases,
+       (SELECT COUNT(*)::int FROM payments WHERE listing_id = ?) AS payments`,
+    [listing.id, listing.id]
+  );
+  const counts = records[0];
+  if (Number(counts?.leases ?? 0) > 0 || Number(counts?.payments ?? 0) > 0) {
+    return res.status(409).json({
+      error: "This listing has a lease or payment on record, so it can't be deleted.",
+    });
   }
 
   const [photos] = await pool.query<RowDataPacket[]>(
@@ -164,6 +175,7 @@ listingEditingRouter.delete("/:id", async (req, res) => {
 
   await pool.query("DELETE FROM listings WHERE id = ?", [listing.id]);
 
+  // Remove the photo files only after the database delete succeeds.
   for (const photo of photos) {
     await unlink(path.join(UPLOAD_DIR, path.basename(photo.storage_url))).catch(() => {});
   }

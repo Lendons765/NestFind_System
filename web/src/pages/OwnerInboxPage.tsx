@@ -105,11 +105,11 @@ export default function OwnerInboxPage() {
   }
 
   if (loading) {
-    return <main className="page"><p>Loading…</p></main>;
+    return <main className="page owner-inbox"><p>Loading…</p></main>;
   }
   if (!token || !user) {
     return (
-      <main className="page">
+      <main className="page owner-inbox">
         <p>
           Please <Link to="/login">log in</Link> to see your inbox.
         </p>
@@ -118,14 +118,14 @@ export default function OwnerInboxPage() {
   }
   if (user.role !== "owner") {
     return (
-      <main className="page">
+      <main className="page owner-inbox">
         <p>The inbox is only available to owner accounts.</p>
       </main>
     );
   }
 
   return (
-    <main className="page">
+    <main className="page owner-inbox">
       <h1>Inbox</h1>
 
       {inquiries.isLoading && <p>Loading inquiries…</p>}

@@ -1,54 +1,35 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
+import { useAuth } from "../auth/AuthContext";
 import { sendInquiry } from "../api/listings";
 
-type FormState = {
-  name: string;
-  email: string;
-  phone: string;
-  message: string;
-  preferredAt: string;
-};
-
-const emptyForm: FormState = { name: "", email: "", phone: "", message: "", preferredAt: "" };
-
 export default function InquiryForm({ listingId }: { listingId: string }) {
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { user } = useAuth();
+  const [message, setMessage] = useState("");
+  const [preferredAt, setPreferredAt] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () =>
       sendInquiry(listingId, {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim() || undefined,
-        message: form.message.trim(),
-        preferredAt: form.preferredAt || undefined,
+        name: user?.fullName ?? "",
+        email: user?.email ?? "",
+        message: message.trim(),
+        preferredAt: preferredAt || undefined,
       }),
   });
 
-  function update(field: keyof FormState, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    // Clear the message for a field as soon as the user starts fixing it.
-    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
-  }
-
-  function validate() {
-    const next: Record<string, string> = {};
-    if (!form.name.trim()) next.name = "Please enter your name.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      next.email = "Please enter a valid email, such as name@example.com.";
-    }
-    if (!form.message.trim()) next.message = "Please write a message for the owner.";
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  }
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
-    mutation.mutate();
+  if (!user) {
+    return (
+      <div className="inquiry-form">
+        <h2>Message the owner</h2>
+        <p>
+          Please <Link to="/login">log in</Link> to send a message to the owner.
+        </p>
+      </div>
+    );
   }
 
   if (mutation.isSuccess) {
@@ -64,54 +45,45 @@ export default function InquiryForm({ listingId }: { listingId: string }) {
     );
   }
 
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!message.trim()) {
+      setError("Please write a message for the owner.");
+      return;
+    }
+    if (message.trim().length > 2000) {
+      setError("Keep your message under 2,000 characters.");
+      return;
+    }
+    mutation.mutate();
+  }
+
   return (
     <form className="inquiry-form" onSubmit={handleSubmit} noValidate>
-      <h2>Send an inquiry</h2>
-
-      <label>
-        Name
-        <input
-          value={form.name}
-          aria-invalid={!!errors.name}
-          onChange={(e) => update("name", e.target.value)}
-        />
-        {errors.name && <span className="field-error">{errors.name}</span>}
-      </label>
-
-      <label>
-        Email
-        <input
-          type="email"
-          value={form.email}
-          aria-invalid={!!errors.email}
-          onChange={(e) => update("email", e.target.value)}
-        />
-        {errors.email && <span className="field-error">{errors.email}</span>}
-      </label>
-
-      <label>
-        Phone (optional)
-        <input value={form.phone} onChange={(e) => update("phone", e.target.value)} />
-      </label>
+      <h2>Message the owner</h2>
 
       <label>
         Message
         <textarea
           rows={4}
           maxLength={2000}
-          value={form.message}
-          aria-invalid={!!errors.message}
-          onChange={(e) => update("message", e.target.value)}
+          value={message}
+          aria-invalid={!!error}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            setError(null);
+          }}
         />
-        {errors.message && <span className="field-error">{errors.message}</span>}
+        {error && <span className="field-error">{error}</span>}
       </label>
 
       <label>
         Preferred viewing time (optional)
         <input
           type="datetime-local"
-          value={form.preferredAt}
-          onChange={(e) => update("preferredAt", e.target.value)}
+          value={preferredAt}
+          onChange={(e) => setPreferredAt(e.target.value)}
         />
       </label>
 

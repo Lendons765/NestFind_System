@@ -21,6 +21,7 @@ export function register(input: {
   email: string;
   password: string;
   role: Role;
+  phone?: string;
 }): Promise<
   | AuthResponse
   | VerificationPending

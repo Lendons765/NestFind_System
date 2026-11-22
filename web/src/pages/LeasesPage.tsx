@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { fetchMyApplications, fetchMyLeases, signLease } from "../api/leasing";
-import type { ApplicationStatus, LeaseRow, LeaseStatus } from "../types";
+import type { ApplicationStatus, LeaseRow, LeaseStatus } from "../type";
 
 const appLabel: Record<ApplicationStatus, string> = {
   submitted: "Submitted",

@@ -43,7 +43,7 @@ export default function Header() {
           {!user && <Link to="/">Home</Link>}
           {!user && <Link to="/#about">About</Link>}
           {!user && <Link to="/#contact">Contact</Link>}
-          {user && <Link to="/search">Browse</Link>}
+          {!(user && user.role === "owner") && <Link to="/search">Browse</Link>}
         </div>
 
         <div className="nav-auth">
@@ -51,9 +51,9 @@ export default function Header() {
             <>
               {user.role === "tenant" && <Link to="/my-home">My home</Link>}
               
-              {user.role === "owner" && <Link to="/my-listings">My listings</Link>}
               {user.role === "owner" && <Link to="/dashboard">Dashboard</Link>}
               {user.role === "owner" && <Link to="/inbox">Inbox</Link>}
+              {user.role === "owner" && <Link to="/my-listings">My listings</Link>}
               <Link to="/leases">Leases</Link>
 
               <Link to="/profile" className="nav-user">

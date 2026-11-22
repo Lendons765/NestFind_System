@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("tenant");
   const [agreed, setAgreed] = useState(false);
@@ -55,7 +56,13 @@ export default function LoginPage() {
       }
 
       const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-      const outcome = await register({ fullName, email, password, role });
+      const outcome = await register({
+        fullName,
+        email,
+        password,
+        role,
+        phone: phone.trim() || undefined,
+      });
 
       if (outcome === "signed_in") {
         navigate("/");
@@ -64,6 +71,7 @@ export default function LoginPage() {
 
       // Account created: go back to the login form and show the success dialog.
       setPassword("");
+      setPhone("");
       setAgreed(false);
       setSearchParams({});
 
@@ -172,6 +180,17 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
             />
 
+            {isRegister && (
+              <input
+                type="tel"
+                maxLength={20}
+                placeholder="Phone (optional)"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            )}
+
             <div className="auth-password">
               <input
                 type={showPassword ? "text" : "password"}
@@ -236,7 +255,7 @@ export default function LoginPage() {
       <ConfirmDialog
         open={createdOpen}
         title="Account created"
-        message="Your account is ready. Log in with your email and password."
+        message="Your account is ready. We sent a 6-digit code to your email. Verify it any time from the verify page."
         confirmLabel="Log in"
         cancelLabel="Close"
         tone="success"

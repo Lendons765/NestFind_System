@@ -1,10 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchPublicStats } from "../api/dashboard";
 import { useAuth } from "../auth/AuthContext";
-import { useState } from "react";
 import Logo from "../components/Logo";
 import BrowseSection from "../components/BrowseSection";
 import HeroBackdrop from "../components/HeroBackdrop";
@@ -134,7 +133,6 @@ export default function HomePage() {
     navigate(`/search?${params.toString()}`);
   }
 
-  // Shared browse section, shown on both the greeting and the visitor homepage.
   const browseBlock = (
     <section id="browse" className="home-browse">
       <div className="home-browse-head">
@@ -194,13 +192,6 @@ export default function HomePage() {
               </Link>
             ))}
           </div>
-        </section>
-
-        <section className="stats">
-          <Stat label="Live listings" value={stats.data?.live_listings} />
-          <Stat label="Barangays covered" value={stats.data?.barangays} />
-          <Stat label="Property owners" value={stats.data?.owners} />
-          <Stat label="Tenants" value={stats.data?.tenants} />
         </section>
       </main>
     );

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ConfirmDialog from "./ConfirmDialog";
 import { deleteDraft, fetchMyListings } from "../api/owner";
-import type { OwnerListingRow } from "../types";
+import type { OwnerListingRow } from "../type";
 
 const statusLabel: Record<string, string> = {
   draft: "Draft",

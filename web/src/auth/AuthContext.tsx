@@ -10,6 +10,7 @@ interface RegisterInput {
   email: string;
   password: string;
   role: Role;
+  phone?: string;
 }
 
 // "registered": account created, user goes to the login form.

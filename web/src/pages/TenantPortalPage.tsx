@@ -17,7 +17,7 @@ import type {
   MyApplication,
   TenantConversation,
   TenantViewing,
-} from "../type";
+} from "../types";
 
 type Tab = "overview" | "messages" | "viewings" | "movein";
 
@@ -60,9 +60,7 @@ function formatWhen(v: string) {
   return new Date(v).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
 }
 
-/**
- * One sentence that always matches the counts and the lease status.
- */
+// One sentence that always matches the counts and the lease status.
 function nextStep(apps: MyApplication[], leases: LeaseRow[], upcoming: number): string {
   const waitingSignature = leases.find(
     (l) => l.my_role === "tenant" && !l.tenant_signed_at && l.status !== "cancelled" && l.status !== "ended"
@@ -140,18 +138,7 @@ function ConversationCard({ conv, token }: { conv: TenantConversation; token: st
   );
 }
 
-function ChecklistItem({ label, done }: { label: string; done: boolean }) {
-  return (
-    <li className={`check-item${done ? " done" : ""}`}>
-      <span className="dot" />
-      {label}
-    </li>
-  );
-}
-
 function LeaseCard({ lease }: { lease: LeaseRow }) {
-  const startPassed = !!lease.start_date && new Date(lease.start_date) <= new Date();
-
   return (
     <section className="inquiry-card">
       <div className="owner-card-head">
@@ -166,14 +153,6 @@ function LeaseCard({ lease }: { lease: LeaseRow }) {
           </p>
         </div>
       </div>
-
-      <ul className="checklist">
-        <ChecklistItem label="Lease created by the owner" done />
-        <ChecklistItem label="You signed the lease" done={!!lease.tenant_signed_at} />
-        <ChecklistItem label="Owner signed the lease" done={!!lease.owner_signed_at} />
-        <ChecklistItem label="Address shared with you" done={!!lease.address_line} />
-        <ChecklistItem label="Move-in day" done={startPassed} />
-      </ul>
 
       {lease.address_line ? (
         <p className="inquiry">
@@ -266,9 +245,9 @@ export default function TenantPortalPage() {
   };
 
   return (
-    <main className="page">
+    <main className="page tenant-home">
       <div className="owner-toolbar">
-        <h1 style={{ margin: 0 }}>My home</h1>
+        <h1>My home</h1>
         <Link to="/search" className="button-link">Browse listings</Link>
       </div>
 
@@ -323,6 +302,7 @@ export default function TenantPortalPage() {
             <h2>Quick links</h2>
             <div className="quick-links">
               <Link to="/search" className="button-link small">Browse listings</Link>
+              
               <Link to="/leases" className="button-link small">Leases</Link>
             </div>
           </section>

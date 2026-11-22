@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchPublicStats } from "../api/dashboard";
 import { useAuth } from "../auth/AuthContext";
+import { useState } from "react";
 import Logo from "../components/Logo";
 import BrowseSection from "../components/BrowseSection";
+import HeroBackdrop from "../components/HeroBackdrop";
 
 const propertyOptions = [
   { value: "", label: "All Types" },
@@ -150,6 +152,7 @@ export default function HomePage() {
     return (
       <main className="landing">
         <section className="greeting-hero">
+          <HeroBackdrop />
           <p className="greeting-kicker">{timeOfDayGreeting()}</p>
           <h1 className="greeting-title">Welcome, {firstName}</h1>
           <p className="greeting-line">{copy.line}</p>
@@ -199,8 +202,6 @@ export default function HomePage() {
           <Stat label="Property owners" value={stats.data?.owners} />
           <Stat label="Tenants" value={stats.data?.tenants} />
         </section>
-
-        
       </main>
     );
   }
@@ -208,6 +209,7 @@ export default function HomePage() {
   return (
     <main className="landing">
       <section className="landing-hero">
+        <HeroBackdrop />
         <div className="landing-content">
           <Logo large />
 

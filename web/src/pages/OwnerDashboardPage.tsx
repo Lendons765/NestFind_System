@@ -3,6 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { fetchOwnerDashboard } from "../api/dashboard";
 
+import OwnerPeopleSection from "../components/OwnerPeopleSection";
+import OwnerProfileCard from "../components/OwnerProfileCard";
+import OwnerListingsTable from "../components/OwnerListingsTable";
+
 function formatDate(value: string) {
   return new Date(value).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
 }
@@ -61,9 +65,9 @@ export default function OwnerDashboardPage() {
   }
 
   return (
-    <main className="page">
+    <main className="page owner-dash">
       <div className="owner-toolbar">
-        <h1 style={{ margin: 0 }}>Welcome, {user.fullName.split(" ")[0]}</h1>
+        <h1>Welcome, {user.fullName.split(" ")[0]}</h1>
         <Link to="/my-listings/new" className="button-link">+ New listing</Link>
       </div>
 
@@ -107,7 +111,8 @@ export default function OwnerDashboardPage() {
                 <div key={v.id} className="queue-row">
                   <strong>{v.tenantName}</strong> · <Link to={`/listings/${v.listingId}`}>{v.title}</Link>
                   <div className="muted">
-                    {formatDate(v.scheduledAt)} · <span className={`pill ${v.status === "confirmed" ? "pill-confirmed" : "pill-requested"}`}>
+                    {formatDate(v.scheduledAt)} ·{" "}
+                    <span className={`pill ${v.status === "confirmed" ? "pill-confirmed" : "pill-requested"}`}>
                       {v.status === "confirmed" ? "Confirmed" : "Waiting for you"}
                     </span>
                   </div>
@@ -160,6 +165,15 @@ export default function OwnerDashboardPage() {
               </div>
             ))}
           </section>
+        </>
+      )}
+
+      {token && (
+        <>
+          
+          <OwnerProfileCard token={token} />
+          <OwnerListingsTable token={token} />
+          <OwnerPeopleSection token={token} />
         </>
       )}
     </main>

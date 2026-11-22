@@ -123,3 +123,51 @@ tenantExtrasRouter.get("/activity", async (req, res) => {
   );
   return res.json(rows);
 });
+
+// ---------- Own profile ----------
+
+// GET /api/tenant/account
+tenantExtrasRouter.get("/account", async (req, res) => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id, full_name, email, phone, created_at FROM users WHERE id = ? AND role = 'tenant'",
+    [req.user!.id]
+  );
+  const user = rows[0];
+  if (!user) return res.status(404).json({ error: "Account not found." });
+  return res.json({
+    id: user.id,
+    fullName: user.full_name,
+    email: user.email,
+    phone: user.phone ?? null,
+    createdAt: user.created_at,
+  });
+});
+
+// PUT /api/tenant/account
+// Body: { fullName, phone? }. Email and password are changed through their own verified flows.
+tenantExtrasRouter.put("/account", async (req, res) => {
+  const input = req.body ?? {};
+  const fullName = typeof input.fullName === "string" ? input.fullName.trim() : "";
+  const phone = typeof input.phone === "string" && input.phone.trim() ? input.phone.trim() : null;
+
+  if (!fullName || fullName.length > 255) {
+    return res.status(400).json({ error: "Full name is required (255 characters max)." });
+  }
+  if (phone && (phone.length > 32 || !/^[0-9+\-\s()]+$/.test(phone))) {
+    return res.status(400).json({ error: "Enter a valid phone number." });
+  }
+
+  try {
+    await pool.query(
+      "UPDATE users SET full_name = ?, phone = ? WHERE id = ? AND role = 'tenant'",
+      [fullName, phone, req.user!.id]
+    );
+  } catch (err) {
+    // 23505 is PostgreSQL's unique-violation code (phone already used by another account).
+    if ((err as { code?: string }).code === "23505") {
+      return res.status(409).json({ error: "That phone number is already used by another account." });
+    }
+    throw err;
+  }
+  return res.json({ saved: true });
+});

@@ -15,21 +15,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-// Registration either creates an account, sends a verification link, or returns a session.
+// Returns a session for new accounts, or a "check your email" result when claiming.
 export function register(input: {
   fullName: string;
   email: string;
   password: string;
   role: Role;
-  phone?: string;
-}): Promise<
-  | AuthResponse
-  | VerificationPending
-  | { status: "registered"; message: string }
-> {
-  return request<
-    AuthResponse | VerificationPending | { status: "registered"; message: string }
-  >("/api/auth/register", {
+}): Promise<AuthResponse | VerificationPending> {
+  return request<AuthResponse | VerificationPending>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(input),
   });

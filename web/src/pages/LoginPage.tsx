@@ -61,13 +61,7 @@ export default function LoginPage() {
         email,
         password,
         role,
-        phone: phone.trim() || undefined,
       });
-
-      if (outcome === "signed_in") {
-        navigate("/");
-        return;
-      }
 
       // Account created: go back to the login form and show the success dialog.
       setPassword("");

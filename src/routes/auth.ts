@@ -44,7 +44,6 @@ authRouter.post("/register", async (req, res) => {
   const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
-  const phone = typeof body.phone === "string" && body.phone.trim() ? body.phone.trim() : null;
   // Admins can't be created through the public API.
   const role = body.role === "owner" ? "owner" : "tenant";
 
@@ -53,9 +52,6 @@ authRouter.post("/register", async (req, res) => {
   }
   if (!EMAIL_RE.test(email) || email.length > 255) {
     return res.status(400).json({ error: "A valid email is required." });
-  }
-  if (phone && (phone.length > 32 || !/^[0-9+\-\s()]+$/.test(phone))) {
-    return res.status(400).json({ error: "Enter a valid phone number." });
   }
   // bcrypt only uses the first 72 bytes, so longer passwords are rejected.
   if (password.length < 8 || Buffer.byteLength(password) > 72) {
@@ -90,20 +86,12 @@ authRouter.post("/register", async (req, res) => {
 
   const id = randomUUID();
   const passwordHash = await bcrypt.hash(password, 12);
-  try {
-    await pool.query(
-      `INSERT INTO users (id, role, full_name, email, password_hash, phone)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, role, fullName, email, passwordHash, phone]
-    );
-  } catch (error) {
-    if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
-      return res.status(409).json({ error: "An account with this email or phone already exists." });
-    }
-    throw error;
-  }
-
-  // Verification code for the new account. The account can still log in; the code confirms the email.
+  await pool.query(
+    `INSERT INTO users (id, role, full_name, email, password_hash)
+     VALUES (?, ?, ?, ?, ?)`,
+    [id, role, fullName, email, passwordHash]
+  );
+    // Verification code for the new account. The account can still log in; the code confirms the email.
   const verifyCode = await createCode(id, "verify");
   await sendEmail(
     email,

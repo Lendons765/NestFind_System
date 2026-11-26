@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { searchListings } from "../api/listings";
 import type { ListingSummary, SearchFilters } from "../type";
-import { API_BASE } from "../config";
+import { getMediaUrl } from "../utils/media";
 
 const propertyTypes = [
   { value: "", label: "Any type" },
@@ -88,7 +88,7 @@ function ListingCard({ listing }: { listing: ListingSummary }) {
       <Link to={`/listings/${listing.id}`} className="listing-tile-link">
         <div className="listing-photo">
           {listing.cover_url ? (
-            <img src={`${API_BASE}${listing.cover_url}`} alt={listing.title} loading="lazy" />
+            <img src={getMediaUrl(listing.cover_url) ?? ""} alt={listing.title} loading="lazy" />
           ) : (
             <div className="listing-photo-empty" aria-hidden="true">
               <span>No photo yet</span>

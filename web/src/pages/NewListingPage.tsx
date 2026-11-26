@@ -12,8 +12,8 @@ import {
 } from "../api/owner";
 import { fetchLocations } from "../api/locations";
 import type { ListingPhoto, NewListingInput } from "../type";
+import { getMediaUrl } from "../utils/media";
 
-const API_BASE = "http://localhost:4000";
 const MAX_PHOTOS = 10;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -142,7 +142,7 @@ function ListingPreview({
     <section className="preview-card">
       <p className="preview-label">Preview: how tenants see it</p>
       <div className="preview-photo">
-        {coverUrl ? <img src={`${API_BASE}${coverUrl}`} alt="" /> : <span>No photo yet</span>}
+        {coverUrl ? <img src={getMediaUrl(coverUrl) ?? ""} alt="" /> : <span>No photo yet</span>}
       </div>
       <div className="preview-body">
         <h3>{title.trim() || "Your listing title"}</h3>
@@ -258,7 +258,7 @@ function PhotoPicker({
         <div className="photo-grid">
           {saved.map((p, i) => (
             <figure key={p.id}>
-              <img src={`${API_BASE}${p.url}`} alt={`Photo ${i + 1}`} />
+              <img src={getMediaUrl(p.url) ?? ""} alt={`Photo ${i + 1}`} />
               {i === 0 && <span className="cover-tag">Cover</span>}
               <span className="photo-state">Saved</span>
             </figure>

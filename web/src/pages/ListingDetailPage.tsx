@@ -10,7 +10,6 @@ import ApplyPanel from "../components/ApplyPanel";
 import BookViewingPanel from "../components/BookViewingPanel";
 import Modal from "../components/Modal";
 
-
 type ModalKind = "inquiry" | "apply" | "viewing";
 
 const propertyLabels: Record<string, string> = {
@@ -28,8 +27,10 @@ function formatAmount(value: string | number) {
 
 export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [modal, setModal] = useState<ModalKind | null>(null);
+
+  const isOwner = user?.role === "owner";
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["listing", id],
@@ -98,6 +99,12 @@ export default function ListingDetailPage() {
 
   return (
     <main className="ld-page">
+      {isOwner && (
+        <div className="warning">
+          You're previewing this listing the way tenants see it. Tenant actions are turned off for owner accounts.
+        </div>
+      )}
+
       <Link to="/search" className="ld-crumb">← Back to search</Link>
 
       <div className="ld-grid">
@@ -184,19 +191,23 @@ export default function ListingDetailPage() {
               <span>/mo</span>
             </p>
 
-            
-
-            <div className="ld-actions">
-              <button type="button" className="ld-btn primary" onClick={() => setModal("inquiry")}>
-                Message owner
-              </button>
-              <button type="button" className="ld-btn" onClick={() => setModal("apply")}>
-                Apply for this place
-              </button>
-              <button type="button" className="ld-btn" onClick={() => setModal("viewing")}>
-                Book a viewing
-              </button>
-            </div>
+            {isOwner ? (
+              <p className="muted">
+                Tenants can message, apply, and book viewings from this page. Owners can't.
+              </p>
+            ) : (
+              <div className="ld-actions">
+                <button type="button" className="ld-btn primary" onClick={() => setModal("inquiry")}>
+                  Message owner
+                </button>
+                <button type="button" className="ld-btn" onClick={() => setModal("apply")}>
+                  Apply for this place
+                </button>
+                <button type="button" className="ld-btn" onClick={() => setModal("viewing")}>
+                  Book a viewing
+                </button>
+              </div>
+            )}
 
             <div className="ld-address">{addressNote}</div>
           </div>

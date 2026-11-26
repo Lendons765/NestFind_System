@@ -78,7 +78,6 @@ const roleLines: Record<string, { line: string; actions: { to: string; label: st
     actions: [
       { to: "/search", label: "Browse listings" },
       { to: "/my-home", label: "My home" },
-      { to: "/saved", label: "Saved places" },
       { to: "/leases", label: "Leases" },
     ],
   },
@@ -155,35 +154,37 @@ export default function HomePage() {
           <h1 className="greeting-title">Welcome, {firstName}</h1>
           <p className="greeting-line">{copy.line}</p>
 
-          <form className="landing-search greeting-search" onSubmit={handleSearch}>
-            <span className="search-icon">{icons.pin}</span>
-            <input
-              className="search-input"
-              aria-label="Location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Search location (e.g. Cebu City, Lapu-Lapu, etc.)"
-            />
-            <span className="search-divider" />
-            <div className="type-field">
-              <span className="type-icon">{icons.sliders}</span>
-              <select
-                aria-label="Property type"
-                value={propertyType}
-                onChange={(e) => setPropertyType(e.target.value)}
-              >
-                {propertyOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <span className="type-chevron">{icons.chevron}</span>
-            </div>
-            <button type="submit" className="search-submit" aria-label="Search">
-              {icons.search}
-            </button>
-          </form>
+          {user.role === "tenant" && (
+            <form className="landing-search greeting-search" onSubmit={handleSearch}>
+              <span className="search-icon">{icons.pin}</span>
+              <input
+                className="search-input"
+                aria-label="Location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Search location (e.g. Cebu City, Lapu-Lapu, etc.)"
+              />
+              <span className="search-divider" />
+              <div className="type-field">
+                <span className="type-icon">{icons.sliders}</span>
+                <select
+                  aria-label="Property type"
+                  value={propertyType}
+                  onChange={(e) => setPropertyType(e.target.value)}
+                >
+                  {propertyOptions.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="type-chevron">{icons.chevron}</span>
+              </div>
+              <button type="submit" className="search-submit" aria-label="Search">
+                {icons.search}
+              </button>
+            </form>
+          )}
 
           <div className="greeting-actions">
             {copy.actions.map((a) => (

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { API_BASE } from "../config";
+import { getMediaUrl } from "../utils/media";
 
 export default function PhotoGallery({ listingId }: { listingId: string }) {
   const photos = useQuery({
@@ -16,7 +17,7 @@ export default function PhotoGallery({ listingId }: { listingId: string }) {
   return (
     <section className="gallery">
       {photos.data.map((p) => (
-        <img key={p.id} src={`${API_BASE}${p.url}`} alt="Listing photo" />
+        <img key={p.id} src={getMediaUrl(p.url) ?? ""} alt="Listing photo" />
       ))}
     </section>
   );

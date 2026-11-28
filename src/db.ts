@@ -52,4 +52,5 @@ export const pool = {
       release: () => client.release(),
     };
   },
+  end: () => pgPool.end(),
 };

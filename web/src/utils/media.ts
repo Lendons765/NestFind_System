@@ -7,7 +7,7 @@ export function getMediaUrl(url: string | null | undefined): string | null {
   }
 
   const path = url.startsWith("/") ? url : `/${url}`;
-  if (path.startsWith("/uploads/")) {
+ if (path.startsWith("/uploads/")) {
     return `${API_BASE.replace(/\/$/, "")}${path}`;
   }
 
